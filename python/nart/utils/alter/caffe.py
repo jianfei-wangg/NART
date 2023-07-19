@@ -996,16 +996,50 @@ class Softmax_13(Layer, is_register=True, op_type="Softmax", version=13):
 
 class Sub(NonParamLayer, is_register=True):
     def layer_type(self):
-        return "Eltwise"
+        return "Sub"
 
     def parse(self, caffe_pb2):
         layer = super().parse(caffe_pb2)
         layer.bottom[:] = self.node.input[:]
         layer.top[:] = [self.node.output[0]]
 
-        layer.eltwise_param.operation = caffe_pb2.EltwiseParameter.SUM
-        layer.eltwise_param.coeff[:] = [1.0, -1.0]
-        return layer
+        assert len(self.node.input) == 2
+        lhs_shape = self.node.owning_graph.get_tensor_shape(self.node.input[0])
+        rhs_shape = self.node.owning_graph.get_tensor_shape(self.node.input[1])
+
+        rhs_initializer = self.node.input[1] in self.node.owning_graph.initializer
+
+        if rhs_initializer:
+            num_elems = 1
+            for i in rhs_shape:
+                num_elems = num_elems * i
+            if num_elems == 1: # Scales
+                layer.type = "Scales"
+                layer.bottom[:] = [self.node.input[0]]
+                layer.scales_param.alpha = 1.0
+                layer.scales_param.beta = -sum(self.node.owning_graph.get_const_tensor_as_array(self.node.input[1]))
+                return layer
+            else: # use Parameter layer to produce initilizer
+                param_layer = caffe_pb2.LayerParameter(
+                    type="Parameter", name=self.layer_name() + "_param"
+                )
+                param_layer.top[:] = [self.node.input[1]]
+                param_layer.blobs.extend(
+                    [
+                        initializer_to_blob(
+                            self.node.owning_graph.initializer[self.node.input[1]], caffe_pb2
+                        )
+                    ]
+                )
+                param_layer.parameter_param.batch = rhs_shape[0]
+                param_layer.parameter_param.channel = rhs_shape[1]
+                param_layer.parameter_param.height = rhs_shape[2]
+                param_layer.parameter_param.width = rhs_shape[3]
+                return [param_layer, layer]
+
+        else:
+            layer.type = "Sub"
+            return layer
 
 
 class CaffeSoftmax(Layer, is_register=True):
@@ -1038,7 +1072,7 @@ class Transpose(NonParamLayer, is_register=True):
 
 class Mul(NonParamLayer, is_register=True):
     def layer_type(self):
-        return "Eltwise"
+        return "Mul"
 
     def parse(self, caffe_pb2):
         layer = super().parse(caffe_pb2)
@@ -1049,40 +1083,46 @@ class Mul(NonParamLayer, is_register=True):
         lhs_shape = self.node.owning_graph.get_tensor_shape(self.node.input[0])
         rhs_shape = self.node.owning_graph.get_tensor_shape(self.node.input[1])
 
-        if lhs_shape == rhs_shape:
-            layer.type = "Eltwise"
-            layer.eltwise_param.operation = caffe_pb2.EltwiseParameter.PROD
-            return layer
+        rhs_initializer = self.node.input[1] in self.node.owning_graph.initializer
 
-        elif (
-            len(lhs_shape) == len(rhs_shape)
-            and lhs_shape[1] == rhs_shape[1]
-            and (
-                all(i == 1 for i in rhs_shape[2:]) or all(i == 1 for i in lhs_shape[2:])
-            )
-        ):
-            layer.type = "Scale"
-            layer.scale_param.bias_term = False
-            layer.scale_param.axis = 0
-
-            if all(i == 1 for i in rhs_shape[2:]):
-                lhs = self.node.input[0]
-                rhs = self.node.input[1]
-                reshaped_rhs = rhs + "_flatten"
-            else:
-                lhs = self.node.input[1]
-                rhs = self.node.input[0]
-                reshaped_rhs = rhs + "_flatten"
-
-            reshape_layer = caffe_pb2.LayerParameter(
-                type="Reshape", name=self.layer_name() + "_flat"
-            )
-            reshape_layer.bottom[:] = [rhs]
-            reshape_layer.top[:] = [reshaped_rhs]
-            reshape_layer.reshape_param.shape.dim[:] = [0, -1]
-
-            layer.bottom[:] = [lhs, reshaped_rhs]
-            return [reshape_layer, layer]
+        if rhs_initializer:
+            num_elems = 1
+            for i in rhs_shape:
+                num_elems = num_elems * i
+            if num_elems == 1: # Scales
+                layer.type = "Scales"
+                layer.bottom[:] = [self.node.input[0]]
+                layer.scales_param.alpha = sum(self.node.owning_graph.get_const_tensor_as_array(self.node.input[1]))
+                layer.scales_param.beta = 0
+                return layer
+            elif num_elems == lhs_shape[1]: # Scale
+                layer.type = "Scale"
+                layer.bottom[:] = [self.node.input[0]]
+                layer.blobs.extend(
+                    [
+                        initializer_to_blob(
+                            self.node.owning_graph.initializer[self.node.input[1]], caffe_pb2
+                        )
+                    ]
+                )
+                return layer
+            else: # use Parameter layer to produce initilizer
+                param_layer = caffe_pb2.LayerParameter(
+                    type="Parameter", name=self.layer_name() + "_param"
+                )
+                param_layer.top[:] = [self.node.input[1]]
+                param_layer.blobs.extend(
+                    [
+                        initializer_to_blob(
+                            self.node.owning_graph.initializer[self.node.input[1]], caffe_pb2
+                        )
+                    ]
+                )
+                param_layer.parameter_param.batch = rhs_shape[0]
+                param_layer.parameter_param.channel = rhs_shape[1]
+                param_layer.parameter_param.height = rhs_shape[2]
+                param_layer.parameter_param.width = rhs_shape[3]
+                return [param_layer, layer]
 
         else:
             layer.type = "Mul"
@@ -1230,16 +1270,50 @@ class HeatMap2Coord(Layer, is_register=True):
 
 class Add(NonParamLayer, is_register=True):
     def layer_type(self):
-        return "Eltwise"
+        return "Add"
 
     def parse(self, caffe_pb2):
         layer = super().parse(caffe_pb2)
         layer.bottom[:] = self.node.input[:]
         layer.top[:] = [self.node.output[0]]
 
-        layer.eltwise_param.operation = caffe_pb2.EltwiseParameter.SUM
-        layer.eltwise_param.coeff[:] = [1.0, 1.0]
-        return layer
+        assert len(self.node.input) == 2
+        lhs_shape = self.node.owning_graph.get_tensor_shape(self.node.input[0])
+        rhs_shape = self.node.owning_graph.get_tensor_shape(self.node.input[1])
+
+        rhs_initializer = self.node.input[1] in self.node.owning_graph.initializer
+
+        if rhs_initializer:
+            num_elems = 1
+            for i in rhs_shape:
+                num_elems = num_elems * i
+            if num_elems == 1: # Scales
+                layer.type = "Scales"
+                layer.bottom[:] = [self.node.input[0]]
+                layer.scales_param.alpha = 1.0
+                layer.scales_param.beta = sum(self.node.owning_graph.get_const_tensor_as_array(self.node.input[1]))
+                return layer
+            else: # use Parameter layer to produce initilizer
+                param_layer = caffe_pb2.LayerParameter(
+                    type="Parameter", name=self.layer_name() + "_param"
+                )
+                param_layer.top[:] = [self.node.input[1]]
+                param_layer.blobs.extend(
+                    [
+                        initializer_to_blob(
+                            self.node.owning_graph.initializer[self.node.input[1]], caffe_pb2
+                        )
+                    ]
+                )
+                param_layer.parameter_param.batch = rhs_shape[0]
+                param_layer.parameter_param.channel = rhs_shape[1]
+                param_layer.parameter_param.height = rhs_shape[2]
+                param_layer.parameter_param.width = rhs_shape[3]
+                return [param_layer, layer]
+
+        else:
+            layer.type = "Add"
+            return layer
 
 
 class CaffeBatchNorm(Layer, is_register=True):
@@ -1597,4 +1671,27 @@ class CostVolume(Layer, is_register=True):
         for i in self.node.input[2:]:
             w = self.node.owning_graph.get_const_tensor_as_array(i)
             layer.blobs.extend([array_to_blob(w, caffe_pb2)])
+        return layer
+
+class Resize(Layer, is_register=True, version=11):
+    def layer_type(self):
+        return "Resize"
+
+    def parse(self, caffe_pb2):
+        mode = self.node.get_attribute_value("mode")
+        layer = caffe_pb2.LayerParameter(type='Interp', name=self.layer_name())
+        layer.bottom[:] = [self.node.input[0]]
+        layer.top[:] = self.node.output
+
+        if mode == 'nearest':
+            layer.type = 'NNUpsample'
+            layer.nn_upsample_param.resize = self.node.owning_graph.get_const_tensor_as_array(self.node.input[2]).astype(np.int32)[2]
+            return layer
+        elif mode == 'linear':
+            top_shape = self.node.owning_graph.get_const_tensor_as_array(self.node.input[2]).astype(np.int32)
+            layer.interp_param.height = top_shape[2]
+            layer.interp_param.height = top_shape[3]
+            return layer
+        else:
+            return layer
         return layer
