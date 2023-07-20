@@ -1031,10 +1031,14 @@ class Sub(NonParamLayer, is_register=True):
                         )
                     ]
                 )
-                param_layer.parameter_param.batch = rhs_shape[0]
-                param_layer.parameter_param.channel = rhs_shape[1]
-                param_layer.parameter_param.height = rhs_shape[2]
-                param_layer.parameter_param.width = rhs_shape[3]
+                dst_shape = [1, 1, 1, 1]
+                rhs_len = len(rhs_shape)
+                for i in range(rhs_len):
+                    dst_shape[4 - rhs_len + i] = rhs_shape[i]
+                param_layer.parameter_param.batch = dst_shape[0]
+                param_layer.parameter_param.channel = dst_shape[1]
+                param_layer.parameter_param.height = dst_shape[2]
+                param_layer.parameter_param.width = dst_shape[3]
                 return [param_layer, layer]
 
         else:
@@ -1118,14 +1122,71 @@ class Mul(NonParamLayer, is_register=True):
                         )
                     ]
                 )
-                param_layer.parameter_param.batch = rhs_shape[0]
-                param_layer.parameter_param.channel = rhs_shape[1]
-                param_layer.parameter_param.height = rhs_shape[2]
-                param_layer.parameter_param.width = rhs_shape[3]
+                dst_shape = [1, 1, 1, 1]
+                rhs_len = len(rhs_shape)
+                for i in range(rhs_len):
+                    dst_shape[4 - rhs_len + i] = rhs_shape[i]
+                param_layer.parameter_param.batch = dst_shape[0]
+                param_layer.parameter_param.channel = dst_shape[1]
+                param_layer.parameter_param.height = dst_shape[2]
+                param_layer.parameter_param.width = dst_shape[3]
                 return [param_layer, layer]
 
         else:
             layer.type = "Mul"
+            return layer
+
+        return layer
+
+class Div(NonParamLayer, is_register=True):
+    def layer_type(self):
+        return "Div"
+
+    def parse(self, caffe_pb2):
+        layer = super().parse(caffe_pb2)
+        layer.bottom[:] = self.node.input[:]
+        layer.top[:] = [self.node.output[0]]
+
+        assert len(self.node.input) == 2
+        lhs_shape = self.node.owning_graph.get_tensor_shape(self.node.input[0])
+        rhs_shape = self.node.owning_graph.get_tensor_shape(self.node.input[1])
+
+        rhs_initializer = self.node.input[1] in self.node.owning_graph.initializer
+
+        if rhs_initializer:
+            num_elems = 1
+            for i in rhs_shape:
+                num_elems = num_elems * i
+            if num_elems == 1: # Scales
+                layer.type = "Scales"
+                layer.bottom[:] = [self.node.input[0]]
+                layer.scales_param.alpha = 1 / sum(self.node.owning_graph.get_const_tensor_as_array(self.node.input[1]))
+                layer.scales_param.beta = 0
+                return layer
+            else: # use Parameter layer to produce initilizer
+                param_layer = caffe_pb2.LayerParameter(
+                    type="Parameter", name=self.layer_name() + "_param"
+                )
+                param_layer.top[:] = [self.node.input[1]]
+                param_layer.blobs.extend(
+                    [
+                        initializer_to_blob(
+                            self.node.owning_graph.initializer[self.node.input[1]], caffe_pb2
+                        )
+                    ]
+                )
+                dst_shape = [1, 1, 1, 1]
+                rhs_len = len(rhs_shape)
+                for i in range(rhs_len):
+                    dst_shape[4 - rhs_len + i] = rhs_shape[i]
+                param_layer.parameter_param.batch = dst_shape[0]
+                param_layer.parameter_param.channel = dst_shape[1]
+                param_layer.parameter_param.height = dst_shape[2]
+                param_layer.parameter_param.width = dst_shape[3]
+                return [param_layer, layer]
+
+        else:
+            layer.type = "Div"
             return layer
 
         return layer
@@ -1305,10 +1366,14 @@ class Add(NonParamLayer, is_register=True):
                         )
                     ]
                 )
-                param_layer.parameter_param.batch = rhs_shape[0]
-                param_layer.parameter_param.channel = rhs_shape[1]
-                param_layer.parameter_param.height = rhs_shape[2]
-                param_layer.parameter_param.width = rhs_shape[3]
+                dst_shape = [1, 1, 1, 1]
+                rhs_len = len(rhs_shape)
+                for i in range(rhs_len):
+                    dst_shape[4 - rhs_len + i] = rhs_shape[i]
+                param_layer.parameter_param.batch = dst_shape[0]
+                param_layer.parameter_param.channel = dst_shape[1]
+                param_layer.parameter_param.height = dst_shape[2]
+                param_layer.parameter_param.width = dst_shape[3]
                 return [param_layer, layer]
 
         else:
@@ -1627,6 +1692,27 @@ class Reciprocal(NonParamLayer, is_register=True):
 
         return layer
 
+class Hsigmoid(NonParamLayer, is_register=True):
+    def layer_type(self):
+        return "HSigmoid"
+
+    def parse(self, caffe_pb2):
+        layer = super().parse(caffe_pb2)
+        layer.bottom[:] = self.node.input[:]
+        layer.top[:] = [self.node.output[0]]
+
+        return layer
+
+class Sqrt(NonParamLayer, is_register=True):
+    def layer_type(self):
+        return "Sqrt"
+
+    def parse(self, caffe_pb2):
+        layer = super().parse(caffe_pb2)
+        layer.bottom[:] = self.node.input[:]
+        layer.top[:] = [self.node.output[0]]
+
+        return layer
 
 class Warp(NonParamLayer, is_register=True):
     def layer_type(self):
@@ -1694,4 +1780,42 @@ class Resize(Layer, is_register=True, version=11):
             return layer
         else:
             return layer
+        return layer
+
+class MatMul(NonParamLayer, is_register=True):
+    def layer_type(self):
+        return "MatMul"
+
+    def parse(self, caffe_pb2):
+        layer = super().parse(caffe_pb2)
+        layer.bottom[:] = self.node.input[:]
+        layer.top[:] = [self.node.output[0]]
+
+        assert len(self.node.input) == 2
+        lhs_shape = self.node.owning_graph.get_tensor_shape(self.node.input[0])
+        rhs_shape = self.node.owning_graph.get_tensor_shape(self.node.input[1])
+
+        rhs_initializer = self.node.input[1] in self.node.owning_graph.initializer
+
+        if rhs_initializer:
+            param_layer = caffe_pb2.LayerParameter(
+                type="Parameter", name=self.layer_name() + "_param"
+            )
+            param_layer.top[:] = [self.node.input[1]]
+            param_layer.blobs.extend(
+                [
+                    initializer_to_blob(
+                        self.node.owning_graph.initializer[self.node.input[1]], caffe_pb2
+                    )
+                ]
+            )
+            param_layer.parameter_param.batch = 1
+            param_layer.parameter_param.channel = rhs_shape[0]
+            param_layer.parameter_param.height = rhs_shape[1]
+            param_layer.parameter_param.width = 1
+            return [param_layer, layer]
+        else:
+            layer.type = "MatMul"
+            return layer
+
         return layer
