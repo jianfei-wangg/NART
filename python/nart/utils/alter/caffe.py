@@ -1034,7 +1034,7 @@ class Sub(NonParamLayer, is_register=True):
                 dst_shape = [1, 1, 1, 1]
                 rhs_len = len(rhs_shape)
                 for i in range(rhs_len):
-                    dst_shape[4 - rhs_len + i] = rhs_shape[i]
+                    dst_shape[len(lhs_shape) - rhs_len + i] = rhs_shape[i]
                 param_layer.parameter_param.batch = dst_shape[0]
                 param_layer.parameter_param.channel = dst_shape[1]
                 param_layer.parameter_param.height = dst_shape[2]
@@ -1125,7 +1125,7 @@ class Mul(NonParamLayer, is_register=True):
                 dst_shape = [1, 1, 1, 1]
                 rhs_len = len(rhs_shape)
                 for i in range(rhs_len):
-                    dst_shape[4 - rhs_len + i] = rhs_shape[i]
+                    dst_shape[len(lhs_shape) - rhs_len + i] = rhs_shape[i]
                 param_layer.parameter_param.batch = dst_shape[0]
                 param_layer.parameter_param.channel = dst_shape[1]
                 param_layer.parameter_param.height = dst_shape[2]
@@ -1178,7 +1178,7 @@ class Div(NonParamLayer, is_register=True):
                 dst_shape = [1, 1, 1, 1]
                 rhs_len = len(rhs_shape)
                 for i in range(rhs_len):
-                    dst_shape[4 - rhs_len + i] = rhs_shape[i]
+                    dst_shape[len(lhs_shape) - rhs_len + i] = rhs_shape[i]
                 param_layer.parameter_param.batch = dst_shape[0]
                 param_layer.parameter_param.channel = dst_shape[1]
                 param_layer.parameter_param.height = dst_shape[2]
@@ -1369,7 +1369,7 @@ class Add(NonParamLayer, is_register=True):
                 dst_shape = [1, 1, 1, 1]
                 rhs_len = len(rhs_shape)
                 for i in range(rhs_len):
-                    dst_shape[4 - rhs_len + i] = rhs_shape[i]
+                    dst_shape[len(lhs_shape) - rhs_len + i] = rhs_shape[i]
                 param_layer.parameter_param.batch = dst_shape[0]
                 param_layer.parameter_param.channel = dst_shape[1]
                 param_layer.parameter_param.height = dst_shape[2]
