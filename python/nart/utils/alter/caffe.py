@@ -392,9 +392,10 @@ class Concat(Layer, is_register=True):
 
 class Conv(Layer, is_register=True):
     def layer_type(self):
-        dilations = get_attr_with_default(self.node, "dilations", [1, 1])
-        has_hole = any(x != 1 for x in dilations)
-        return "Convolution" if not has_hole else "HoleConvolution"
+        return "Convolution" # ppl use param_hole to distinguish conv and hole_conv
+        # dilations = get_attr_with_default(self.node, "dilations", [1, 1])
+        # has_hole = any(x != 1 for x in dilations)
+        # return "Convolution" if not has_hole else "HoleConvolution"
 
     def parse(self, caffe_pb2):
         layer = caffe_pb2.LayerParameter(type=self.layer_type(), name=self.layer_name())
@@ -742,7 +743,7 @@ class GlobalMaxPool(_Pool, is_register=True):
         return pool_param
 
 
-class ArgMax(NonParamLayer, is_register=True):
+class ArgMax(NonParamLayer, version=11, is_register=True):
     def layer_type(self):
         return "ArgMax"
 
@@ -1774,9 +1775,11 @@ class Resize(Layer, is_register=True, version=11):
             layer.nn_upsample_param.resize = self.node.owning_graph.get_const_tensor_as_array(self.node.input[2]).astype(np.int32)[2]
             return layer
         elif mode == 'linear':
-            top_shape = self.node.owning_graph.get_const_tensor_as_array(self.node.input[2]).astype(np.int32)
+            top_shape = self.node.owning_graph.get_const_tensor_as_array(self.node.input[3]).astype(np.int32)
             layer.interp_param.height = top_shape[2]
-            layer.interp_param.height = top_shape[3]
+            layer.interp_param.width = top_shape[3]
+            if self.node.get_attribute_value("coordinate_transformation_mode") == "pytorch_half_pixel":
+                layer.interp_param.align_corners = False
             return layer
         else:
             return layer
