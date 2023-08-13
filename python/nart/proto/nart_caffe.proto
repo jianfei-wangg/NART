@@ -1,6 +1,8 @@
 syntax = "proto2";
 
-package nart_caffe;
+//option optimize_for = LITE_RUNTIME;
+
+package caffe;
 
 // Specifies the shape (dimensions) of a Blob.
 message BlobShape {
@@ -12,17 +14,42 @@ message BlobProto {
   repeated float data = 5 [packed = true];
   repeated float diff = 6 [packed = true];
 
-  // 4D dimensions -- deprecated.  Use "shape" instead.
+  // add by jiangzishan 2022.06.30
+  optional bytes int8_data = 10;
+  repeated int32 int32_data = 11 [packed = true];
+  repeated uint64 uint64_data = 12 [packed = true];
+
+  // 5D dimensions -- deprecated.  Use "shape" instead.
   optional int32 num = 1 [default = 0];
   optional int32 channels = 2 [default = 0];
   optional int32 height = 3 [default = 0];
   optional int32 width = 4 [default = 0];
+  optional int32 depth = 8 [default = 0];
+
+
 }
 
 // The BlobProtoVector is simply a way to pass multiple blobproto instances
 // around.
 message BlobProtoVector {
   repeated BlobProto blobs = 1;
+}
+
+message QuantizeParameter {
+    optional string type       = 1 [default = "quantize"];
+    optional float  step       = 2 [default = 0.1];       // each one in uint8_t represents how much in float.
+    optional float  range_min  = 3 [default = 0];  // what 0 represents.
+    optional float  range_max  = 4 [default = 255];  // what 255 represents.
+    optional uint32 zero_point = 5 [default = 0]; // what 0.0f is represented in uint8
+    optional bool	adjust_range = 6 [default = false]; // whether to adjust range_min and range_max such that zero_point can be precisely represented by integer.
+    optional uint32 range_min_binary = 7 [default = 0];  // what 0 represents.
+    optional uint32 range_max_binary = 8 [default = 255];  // what 255 represents.
+    // multer and shift come from uniquantize_get_quant_scale_int32(istep * wstep / ostep, &multer, &shift);
+    // valid for: 
+    // 1. perlayer uint8 dsp conv
+    // 2. conv must be merged with subsequent relu if possible!
+    optional uint32 multer = 9 [default = 0]; 
+    optional int32 shift = 10 [default = 0]; 
 }
 
 message Datum {
@@ -36,6 +63,7 @@ message Datum {
   repeated float float_data = 6;
   // If true data contains an encoded image that need to be decoded
   optional bool encoded = 7 [default = false];
+  optional int32 depth = 8;
 }
 
 message FillerParameter {
@@ -259,7 +287,7 @@ message ParamSpec {
 // NOTE
 // Update the next available ID when you add a new LayerParameter field.
 //
-// LayerParameter next available layer-specific ID: 138 (last added: affine_trans_point_param)
+// LayerParameter next available layer-specific ID: 143 (last added: detection_output_param)
 message LayerParameter {
   optional string name = 1; // the layer name
   optional string type = 2; // the layer type
@@ -290,6 +318,20 @@ message LayerParameter {
   repeated NetStateRule include = 8;
   repeated NetStateRule exclude = 9;
 
+  // set data type of top blobs;(fp32 fp16 uchar int8 ...)
+  optional string top_data_type = 11 [default='None']; 
+
+  enum PrecisionType {
+    DEFAULT = 0;
+    INT8 = 1;
+    FLOAT16 = 2;
+    FLOAT32 = 3;
+    INT4B = 4;
+    UINT8 = 5;
+    UINT16 = 6;
+  }
+  optional PrecisionType forward_precision = 12 [default = DEFAULT];
+
   // Parameters for data pre-processing.
   optional TransformationParameter transform_param = 100;
 
@@ -307,7 +349,6 @@ message LayerParameter {
   optional ConcatParameter concat_param = 104;
   optional ContrastiveLossParameter contrastive_loss_param = 105;
   optional ConvolutionParameter convolution_param = 106;
-  optional DeformableConvolutionParameter deformable_convolution_param = 999;
   optional DataParameter data_param = 107;
   optional DropoutParameter dropout_param = 108;
   optional DummyDataParameter dummy_data_param = 109;
@@ -319,16 +360,12 @@ message LayerParameter {
   optional ImageDataParameter image_data_param = 115;
   optional InfogainLossParameter infogain_loss_param = 116;
   optional InnerProductParameter inner_product_param = 117;
-  optional InputParameter input_param = 139;
-  optional ResizeParameter resize_param = 300;
-
   optional LRNParameter lrn_param = 118;
   optional MemoryDataParameter memory_data_param = 119;
   optional MVNParameter mvn_param = 120;
   optional PoolingParameter pooling_param = 121;
+  optional PoolingSpecificParameter pooling_specific_param = 1210;
   optional PowerParameter power_param = 122;
-  optional PReLUParameter prelu_param = 132;
-  optional PythonParameter python_param = 130;
   optional ReLUParameter relu_param = 123;
   optional SigmoidParameter sigmoid_param = 124;
   optional SoftmaxParameter softmax_param = 125;
@@ -336,55 +373,91 @@ message LayerParameter {
   optional TanHParameter tanh_param = 127;
   optional ThresholdParameter threshold_param = 128;
   optional WindowDataParameter window_data_param = 129;
-  optional BNParameter bn_param = 178;
+  optional PythonParameter python_param = 130;
   optional CTCParameter ctc_param = 131;
+  optional PReLUParameter prelu_param = 132;
   optional ReshapeParameter reshape_param = 133;
   optional ROIPoolingParameter roi_pooling_param = 134;
   optional AffineTransParameter affine_trans_param = 135;
   optional ROIParameter roi_param = 136;
   optional AffineTransPointParameter affine_trans_point_param = 137;
+  optional PermuteParameter permute_param = 138;
+  optional PriorBoxParameter prior_box_param = 139;
   optional CalcAffineMatParameter calc_affine_mat_param = 140;
   optional InterpParameter interp_param = 141;
-  optional CropParameter crop_param = 5002;
-  optional RecurrentParameter recurrent_param = 5004;
-  optional ReductionParameter reduction_param = 1361;
-  optional MatmulParameter matmul_param = 1362;
-  optional ReduceParameter reduce_param = 1363;
+  optional DetectionOutputParameter detection_output_param = 142;
+  optional ReLU6Parameter relu6_param = 143;
 
-  optional TopkSoftmaxParameter topksoftmax_param = 144;
-  optional NormalizeParameter normalize_param = 145;
-  optional ScaleParameter scale_param = 146;
-  optional BiasParameter bias_param = 147;
 
-  optional PositionVoteParameter position_vote_param = 148;
-  optional ROIMaskPoolingParameter roi_mask_pooling_param = 149;
-  optional PSROIPoolingParameter psroi_pooling_param = 150;
+  //! add by linan 2017.11.23
+  //! original number is 141
+  optional BiasParameter bias_param = 144;
+  //! <<<
+
+  //! add by linan 2017.4.20
+  optional ZXYBNParameter zxybn_param = 145;
+  //! add by linan 2016.12.26
+  optional CorrelationParameter correlation_param = 150;
+
+  //! add by pengcuo 2017.02.07
+  optional PSROIPoolingParameter psroi_pooling_param = 152;
   optional NNUpsampleParameter nn_upsample_param = 163;
-  optional PSROIMaskPoolingParameter psroi_mask_pooling_param = 152;
 
-  optional NNInterpParameter nninterp_param = 154;
-  optional HeatMap2CoordParameter heatmap_param = 155;
+  //! add by linan 2017.5.3
+  optional ROIAlignParameter roi_align_param = 153;
 
+  optional RpnProposalLayerParameter rpn_proposal_param = 166;
+  optional ROIMaskPoolingParameter roi_mask_pooling_param = 176;
+
+  //! add by pengcuo 2017.09.07
+  optional ChannelShuffleParameter channel_shuffle_param = 177;
+
+  optional BNParameter bn_param = 178;
+
+  //! add pengcuo 2017.8.17
+  optional ROIAlignPoolingPodParameter roi_align_pooling_pod_param = 205;
+  optional ROIAlignPoolingParameter roi_align_pooling_param = 206;
   optional PSROIAlignPoolingParameter psroi_align_pooling_param = 207;
 
-  optional ROIAlignPoolingParameter roi_align_pooling_param = 206;
-  optional PODROIAlignPoolingParameter podroi_align_pooling_param = 208;
+  //! add by pengcuo 2017.09.21
+  optional AlignmentToROIParameter alignment_to_roi_param = 218;
 
-  optional BatchNormParameter batch_norm_param = 175;
-  optional GroupNormParameter group_norm_param = 299;
-  optional TransposeParameter transpose_param = 179;
-  optional CorrelationParameter correlation_param = 138;
-  optional ZXYBNParameter zxybn_param = 196;
-  optional ReLU6Parameter relu6_param = 233;
-  optional ShuffleChannelParameter shuffle_channel_param = 164;
+  //! add by pengcuo 2017.08
+  optional UnpoolingParameter unpooling_param = 243;
+
+  optional LogParameter log_param = 244;
+
+  //! add by linan 2017.10.17
+  optional ReverseParameter reverse_param = 301;
+  optional LSTMParameter lstm_param = 302;
+  optional PriorVBoxParameter prior_vbox_param = 304;
+  //! <<<
+
+  optional BTCostVolumeParameter btcostvolume_param = 1001;
+
+
+  //! add by yingrui 2017.12.22
+  optional MovingAvgParameter moving_avg_param = 1799;
+
+  //! add by yingrui 2017.10.25
+  optional SlicingParameter slicing_param = 5180;
+  optional BilateralSlicingParameter bilateral_slicing_param = 5181;
+  optional BilateralSliceApplyParameter bilateral_slice_apply_param = 5182;
+  optional AdaptiveBilateralSliceApplyParameter adaptive_bilateral_slice_apply_param = 5183;
+
+  //! add by yingrui 2017.11.07
+  optional PointsCurveParameter pointscurve_param = 2000;
   optional SubpixelDownParameter subpixel_down_param = 2001;
   optional SubpixelUpParameter subpixel_up_param = 2002;
-  optional UpsampleParameter upsample_param = 2003;
+  optional ClipParameter clip_param = 2003;
+  optional EltwiseAffineTransformParameter eltwise_affine_transform_param = 2004;
+  optional TileParameter tile_param = 2005;
   optional PadParameter  pad_param = 2006;
-  optional ShuffleChannelParameter channel_shuffle_param = 2007;
-  optional ParameterParameter parameter_param = 2008;
-  
-  //! add by yujinbaio 2022.01.10 3d layer parameters
+  optional ReduceParameter reduce_param = 2007;
+
+  //! add by linan 2019.11.15, 3d layer parameters
+  optional Convolution3dParameter convolution3d_param = 2008;
+  //optional ConvolutionTranspose3dParameter convolution_transpose3d_param = 2009;
   optional Deconvolution3dParameter deconvolution3d_param = 2009;
   optional ReLU3dParameter relu3d_param = 2010;
   optional PReLUParameter prelu3d_param = 2011;
@@ -397,190 +470,427 @@ message LayerParameter {
   optional DropoutParameter dropout3d_param = 2018;
   optional Interp3dParameter interp3d_param = 2019;
   optional Pooling3dParameter pooling3d_param = 2020;
-  optional Convolution3dParameter convolution3d_param = 2021;
   optional ReshapeParameter reshape3d_param = 2022;
-  optional MatmulParameter matmul3d_param = 2029;
-  //! add by zhangqi3 2022.06.24
-  optional ClipParameter clip_param = 2023;
+  optional SoftmaxParameter softmax3d_param = 2023;
+  optional ArgMaxParameter argmax3d_param = 2024;
+  optional InnerProductParameter inner_product3d_param = 2025;
+  optional SliceParameter slice3d_param = 2026;
+  optional ConcatParameter concat3d_param = 2027;
+  optional BNParameter bn3d_param = 2028;
+  optional MatMulParameter matmul3d_param = 2029;
+  optional TransposeParameter transpose3d_param = 2030;
+  optional DeformConv3dParameter deformconv3d_param = 2031;
+  optional DeformConvParameter deformconv_param = 2032;
 
-  optional ConvexUpsampleParameter convexupsample_param = 6009;
-  optional CostVolumeParameter costvolume_param  = 6010;
+
+  optional ScaleParameter scale_param = 5001;
+  optional CropParameter crop_param = 5002;
+  optional RecurrentParameter recurrent_param = 5004;
+  optional BatchNormParameter batch_norm_param = 5005;
+  optional FlattenParameter flatten_param = 5006;
   optional ScalesParameter scales_param = 5007;
+  optional TransposeParameter transpose_param = 5008;
+
+  //! add by linan 2018.5.28
+  optional HeatMap2CoordParameter heatmap_param = 5009;
+  optional NormalizeParameter normalize_param = 5010;
+
+  optional Correlation2DParameter correlation2d_param = 5011;
+
+  //! add by linjin 2020.02.19
+  optional MatMulParameter matmul_param = 5012;
+  optional ParameterParameter parameter_param = 5013;
+
+  //! add by liangjiexin 2020.3.2
+  optional PixelShuffleParameter pixelshuffle_param = 5014;
+
+  //! add by liangjiexin 2020.4.15
+  optional ROITransformParameter roi_transform_param = 5015;
+
+  //! add by linjin 2020.4.27
+  optional InstanceNormParameter instance_norm_param = 5016;
+
+  //! add by jianfei 2020.8.14
+  optional GridSampleParameter grid_sample_param = 5018;
+  //! add by jianfei 2020.7.14
+  optional ReduceL2Parameter reducel2_param = 5017;
+
+  //! add by linjin 2020.8.19
+  optional MeanParameter mean_param = 5019;
+  //! add by linjin 2020.8.6
+  optional VarianceParameter variance_param = 5020;
+  //! add by linjin 2020.9.3
+  optional GridSample3DParameter grid_sample_3d_param = 5021;
+
+  //! add by liangjiexin 2020.9.10
+  optional GRUParameter gru_param = 5022;
+  //! add by jianfei 2020.9.27
+  optional CorrelationMigParameter correlationmig_param = 5023;
+  //! add by jianfei 2020.10.15
+  optional ArgSortParameter argsort_param = 5024;
+  optional CumProdParameter cumprod_param = 5025;
+
+  //! add by liangjiexin 2020.10.28
+  optional MainTransformParameter main_transform_param = 5026;
+
+  //! add by chenkailiang 2020.12.04
+  optional ProbNMSParameter prob_nms_param = 5027;
+
+  //! add by liangjiexin 2020.12.10
+  optional ChainCRFParameter chain_crf_param = 5028;
+
+  //! add by chenkailiagn 2020.12.21
+  optional LayerNormParameter layernorm_param = 5029;
+
+  //! add by jiangzishan 2020.10.10
+  optional NNInterpParameter nninterp_param = 5100;
+
+  //! add by jiangzishan 2021.02.18
+  optional AscendBenchmarkParameter ascend_benchmark_param = 5101;
+
+  //! add by jiangzishan 2021.03.29
+  optional EmbedParameter embed_param = 5102;
+
+  //! add by jiangzishan 2021.04.13
+  optional IndexSelectParameter index_select_param = 5103;
+
+  //! add by jiangzishan 2021.04.15
+  optional ReductionParameter reduction_param = 5104;
+
+  //! add by jiangzishan 2021.04.21
+  optional OneStageOutputParameter one_stage_output_param = 5105;
+
+  //! add by caokun 2021.07.27
+  optional WindowGatherParameter window_gather_param = 5106;
+
+  //! add by jiangzishan 2021.07.29  
+  optional ProposalParameter proposal_param = 5107;
+
+  //! add by jiangzishan 2021.08.02
+  optional CollectFpnProposalsParameter collect_fpn_proposals_param = 5108;
+
+  //! add by jiangzishan 2021.08.11
+  optional DistributeFpnProposalsParameter distribute_fpn_proposals_param = 5109;
+
+  //! add by jiangzishan 2021.09.03
+  optional ROIExtractorParameter roi_extractor_param = 5110;
+
+  //! add by liangjiexin 2021.12.13
+  optional GatherParameter gather_param = 5111;
+
+  //! add by jiangzishan 2022.06.28
+  // only used by ppl_ascend quantize situation
+  optional QuantParameter quant_param = 5112;
+  optional DeQuantParameter dequant_param = 5113;
   
+
+  repeated QuantizeParameter quantize_param = 6000;
+
+  //! added by tianzichen 2020.10.29
+  // hexagon dsp uint16 quantize bits, used only when PrecisionType = UINT16, range [1, 16]
+  // default = 0 means this layer's quantize bits is not specified, will use global quantize bits.
+  optional uint32 quantize_bits = 6001 [default = 0];
+
+  //! add by Tianjian Li 20210204 To Support Torch Reshape
+  optional DynamicReshapeParameter dynamic_param = 6005;
+
+  //! add by Tianjian Li 20210202
+  optional GroupNorm3dParameter groupnorm_param = 6006;
+
+  //! add by chenkailiang 20210312
+  optional ArgMinParameter argmin_param = 6007;
+
+  //! add by WJF 20210314
+  optional AdaptiveAvePoolParameter adaptiveavepool_param = 6008;
+  
+  //! add by Tianjian Li 20210518
+  optional AdaptiveAvePool3dParameter adaptiveavepool3d_param = 6010;
+  //! add by Jianfei 20210601
+  optional AdaptiveAvePool3dParameter adaptivemaxpool3d_param = 6011;
+  //! add by Jianfei 20210609
+  optional AdaptiveAvePoolParameter adaptivemaxpool_param = 6012;
+  //! add by Jianfei 20210707
+  optional ArangeParameter arange_param = 6013;
+  //! add by Jianfei 20210721
+  optional GetItemParameter get_item_param = 6014;
+
+
+  //! add by liangjiexin 20210607
+  optional LSTMCellParameter lstmcell_param = 6009;
+
+  //! add by caokun 20210804
+  optional WindowScatterParameter window_scatter_param = 6015;
+  
+  //! add by Jianfei 20210819
+  optional Parameter3dParameter parameter3d_param = 6016;
+
+  //! add by Jianfei 20210928
+  optional InterpScalesParameter interpscales_param = 6017;
+
+  //! add by Jianfei 20211021
+  optional UpFirDn2DParameter upfirdn2d_param = 6018;
+  optional ReluScalesParameter reluscales_param = 6019;
+
+    //! add by jianfei 2021.12.6
+  optional BackwardWarpMigParameter backwardwarpmig_param = 6020;
+
+  //! add by yangyang 2022.1.24
+  optional LogicalJudgmentParameter logicaljudgment_param = 6021;
+
+  //! add by zhenghaojiang 2022.2.21
+  optional TopkSoftmaxParameter topksoftmax_param = 6022;
+    
+  //! add by jianfei 2021.12.6
+  optional SumShiftScalesSigmoidParameter sumshiftscalessigmoid_param = 6023;
+
+  //! add by zhenghaojiang 2022.4.13
+  optional DrawHeatmapParameter drawheatmap_param = 6024;
+
+  //! add by caokun 2022.02.25
+  optional CostVolumeParameter costvolume_param = 6025;
+
+  //! add by caokun 2022.03.08
+  optional ConvexUpsampleParameter convexupsample_param = 6026;
+
+  //! add by jianfei 2022.7.14
+  optional FusedLeakyReLUParameter fused_leaky_relu_param = 6028;
+
+  //! add by jianfei 2022.8.2
+  optional FFTParameter fft_param = 6029;
+
+  //! add by leidan 2022.9.26
+  optional TorchSumParameter torch_sum_param = 6030;
+  //! add by xusiyu 2022.10.17
+  optional NonLocalMeanParameter nonlocalmean_param = 6031;
 }
 
-message ScalesParameter {
-    optional float alpha = 1 [default = 1];
-    optional float beta = 2 [default = 0];
+message Convolution3dParameter {
+  optional uint32 num_output = 1; // The number of outputs for the layer
+  optional bool bias_term = 2 [default = true]; // whether to have bias terms
+  // Pad, kernel size, and stride are all given as a single value for equal
+  // dimensions in height and width or as Y, X pairs.
+  optional uint32 pad = 3 [default = 0]; // The padding size (equal in Y, X)
+  optional uint32 pad_d = 23 [default = 0]; // The padding depth
+  optional uint32 pad_h = 9 [default = 0]; // The padding height
+  optional uint32 pad_w = 10 [default = 0]; // The padding width
+  optional uint32 kernel_size = 4; // The kernel size (square)
+  optional uint32 kernel_d = 22; // The kernel depth
+  optional uint32 kernel_h = 11; // The kernel height
+  optional uint32 kernel_w = 12; // The kernel width
+  optional uint32 group = 5 [default = 1]; // The group size for group conv
+  optional uint32 stride = 6 [default = 1]; // The stride (equal in Y, X)
+  optional uint32 stride_d = 21; // The stride depth
+  optional uint32 stride_h = 13; // The stride height
+  optional uint32 stride_w = 14; // The stride width
+  optional uint32 hole = 17 [default = 1];
+  optional uint32 hole_d = 19 [default = 1];
+  optional uint32 hole_h = 18 [default = 1];
+  optional uint32 hole_w = 20 [default = 1];
+
 }
 
-message PadParameter {
-    optional string mode = 1 [default = "constant"];
-    optional float value = 2 [default = 0];
-    repeated int32 pads = 3;
+message DeformConv3dParameter {
+  optional uint32 num_output = 1; // The number of outputs for the layer
+  optional bool bias_term = 2 [default = true]; // whether to have bias terms
+  // Pad, kernel size, and stride are all given as a single value for equal
+  // dimensions in height and width or as Y, X pairs.
+  optional uint32 pad = 3 [default = 0]; // The padding size (equal in Y, X)
+  optional uint32 pad_d = 23 [default = 0]; // The padding depth
+  optional uint32 pad_h = 9 [default = 0]; // The padding height
+  optional uint32 pad_w = 10 [default = 0]; // The padding width
+  optional uint32 kernel_size = 4; // The kernel size (square)
+  optional uint32 kernel_d = 22; // The kernel depth
+  optional uint32 kernel_h = 11; // The kernel height
+  optional uint32 kernel_w = 12; // The kernel width
+  optional uint32 group = 5 [default = 1]; // The group size for group conv
+  optional uint32 stride = 6 [default = 1]; // The stride (equal in Y, X)
+  optional uint32 stride_d = 21; // The stride depth
+  optional uint32 stride_h = 13; // The stride height
+  optional uint32 stride_w = 14; // The stride width
+  optional uint32 hole = 17 [default = 1];
+  optional uint32 hole_d = 19 [default = 1];
+  optional uint32 hole_h = 18 [default = 1];
+  optional uint32 hole_w = 20 [default = 1];
+  optional uint32 deformable_group = 24 [default = 1];
+  optional uint32 im2col_step = 25 [default = 1];
+
 }
 
-message ReLU6Parameter {
-  optional float negative_slope = 1 [default = 0];
+message DeformConvParameter {
+  optional uint32 num_output = 1; // The number of outputs for the layer
+  optional bool bias_term = 2 [default = true]; // whether to have bias terms
+  // Pad, kernel size, and stride are all given as a single value for equal
+  // dimensions in height and width or as Y, X pairs.
+  optional uint32 pad = 3 [default = 0]; // The padding size (equal in Y, X)
+  optional uint32 pad_h = 9 [default = 0]; // The padding height
+  optional uint32 pad_w = 10 [default = 0]; // The padding width
+  optional uint32 kernel_size = 4; // The kernel size (square)
+  optional uint32 kernel_h = 11; // The kernel height
+  optional uint32 kernel_w = 12; // The kernel width
+  optional uint32 group = 5 [default = 1]; // The group size for group conv
+  optional uint32 stride = 6 [default = 1]; // The stride (equal in Y, X)
+  optional uint32 stride_h = 13; // The stride height
+  optional uint32 stride_w = 14; // The stride width
+  optional uint32 hole = 17 [default = 1];
+  optional uint32 hole_h = 18 [default = 1];
+  optional uint32 hole_w = 20 [default = 1];
+  optional uint32 deformable_group = 21 [default = 1];
+  optional uint32 im2col_step = 22 [default = 1];
+
 }
 
-message InputParameter {
-  // This layer produces N >= 1 top blob(s) to be assigned manually.
-  // Define N shapes to set a shape for each top.
-  // Define 1 shape to set the same shape for every top.
-  // Define no shape to defer to reshaping manually.
-  repeated BlobShape shape = 1;
+message ConvolutionTranspose3dParameter {
+  optional uint32 num_output = 1; // The number of outputs for the layer
+  optional bool bias_term = 2 [default = true]; // whether to have bias terms
+  // Pad, kernel size, and stride are all given as a single value for equal
+  // dimensions in height and width or as Y, X pairs.
+  optional uint32 pad = 3 [default = 0]; // The padding size (equal in Y, X)
+  optional uint32 pad_h = 9 [default = 0]; // The padding height
+  optional uint32 pad_w = 10 [default = 0]; // The padding width
+  optional uint32 kernel_size = 4; // The kernel size (square)
+  optional uint32 kernel_h = 11; // The kernel height
+  optional uint32 kernel_w = 12; // The kernel width
+  optional uint32 group = 5 [default = 1]; // The group size for group conv
+  optional uint32 stride = 6 [default = 1]; // The stride (equal in Y, X)
+  optional uint32 stride_h = 13; // The stride height
+  optional uint32 stride_w = 14; // The stride width
+  optional uint32 hole = 17 [default = 1];
+  optional uint32 hole_h = 18 [default = 1];
+}
+
+message Deconvolution3dParameter {
+  optional uint32 num_output = 1; // The number of outputs for the layer
+  optional bool bias_term = 2 [default = true]; // whether to have bias terms
+  // Pad, kernel size, and stride are all given as a single value for equal
+  // dimensions in height and width or as Y, X pairs.
+  optional uint32 pad = 3 [default = 0]; // The padding size (equal in Y, X)
+  optional uint32 pad_d = 23 [default = 0]; // The padding depth
+  optional uint32 pad_h = 9 [default = 0]; // The padding height
+  optional uint32 pad_w = 10 [default = 0]; // The padding width
+  optional uint32 kernel_size = 4; // The kernel size (square)
+  optional uint32 kernel_d = 22; // The kernel depth
+  optional uint32 kernel_h = 11; // The kernel height
+  optional uint32 kernel_w = 12; // The kernel width
+  optional uint32 group = 5 [default = 1]; // The group size for group conv
+  optional uint32 stride = 6 [default = 1]; // The stride (equal in Y, X)
+  optional uint32 stride_d = 21; // The stride depth
+  optional uint32 stride_h = 13; // The stride height
+  optional uint32 stride_w = 14; // The stride width
+  optional uint32 hole = 17 [default = 1];
+  optional uint32 hole_d = 19 [default = 1];
+  optional uint32 hole_h = 18 [default = 1];
+  optional uint32 hole_w = 20 [default = 1];
+
+  optional uint32 out_pad = 24 [default = 0]; // The padding size (equal in Y, X)
+  optional uint32 out_pad_d = 25 [default = 0]; // The padding depth
+  optional uint32 out_pad_h = 26 [default = 0]; // The padding height
+  optional uint32 out_pad_w = 27 [default = 0]; // The padding widt
+}
+
+message ReLU3dParameter {
+  optional float negative_slope = 1 [default=0.0];
+  optional bool channel_shared = 2 [default=false];
+}
+
+message FusedLeakyReLUParameter {
+  optional float negative_slope = 1 [default=0.2];
+  optional float scale = 2 [default=1.4142135623730951];
+  optional bool channel_shared = 3 [default=false];
+}
+
+message GroupNorm3dParameter {
+  optional uint32 group = 1 [default=1];
+  optional float moving_average_fraction = 4 [default = .1];
+  optional bool use_global_stats = 2 [default=false];
+  optional float eps = 3 [default=0.000001];
+}
+
+// 20210314 wjf added
+message AdaptiveAvePoolParameter {
+  optional int32 height = 1 [default = 0]; // Height of output
+  optional int32 width = 2 [default = 0]; // Width of output
+}
+
+// 20210518 Tianjian Li added
+message AdaptiveAvePool3dParameter {
+  optional int32 height = 1 [default = 0]; // Height of output
+  optional int32 width = 2 [default = 0]; // Width of output
+  optional int32 depth = 3 [default = 0]; // Depth of output
 }
 
 
-message ShuffleChannelParameter {
-  optional uint32 group = 1[default = 1]; // The number of group
-}
-
-message ZXYBNParameter {
-  optional FillerParameter slope_filler = 1;
-  optional FillerParameter bias_filler = 2;
-  optional float momentum = 3 [default = 0.9];
-  optional float eps = 4 [default = 1e-5];
-  // If true, will use the moving average mean and std for training and test.
-  // Will override the lr_param and freeze all the parameters.
-  // Make sure to initialize the layer properly with pretrained parameters.
-  optional bool frozen = 5 [default = false];
-  enum Engine {
-    DEFAULT = 0;
-    CAFFE = 1;
-    CUDNN = 2;
-  }
-  optional Engine engine = 6 [default = DEFAULT];
-}
-
-
-
-// Message that stores parameters used by CorrelationLayer
-message CorrelationParameter {
-  optional uint32 groups = 1 [default = 1]; // groups size per batch
-  optional uint32 pad = 2 [default = 0]; // The padding size (equal in Y, X)
-  optional uint32 kernel_size = 3; // The kernel size (square)
-  optional uint32 max_displacement = 4; // The maximum displacement (square)
-  optional uint32 stride_1 = 5 [default = 1]; // The stride in blob 1 (equal in Y, X)
-  optional uint32 stride_2 = 6 [default = 1]; // The stride in blob 2 (equal in Y, X)
-
-  // For Correlation1D:
-  optional int32 single_direction = 8 [default = 0]; // Correlate only to the left (-1) or right (1)
-
-  optional bool do_abs = 7 [default = false]; // Use absolute value of result
-  enum CorrelationType {
-    MULTIPLY = 0;
-    SUBTRACT = 1;
-  }
-  optional CorrelationType correlation_type = 15 [default = MULTIPLY]; // Multiplicative is normal correlation
-}
-
-
-
-message TransposeParameter {
-  // For example, if you want to transpose NxCxHxW into WxNxHxC,
-  // the parameter should be the following:
-  // transpose_param { dim: 3 dim: 0 dim: 2 dim: 1 }
-  // ie, if the i-th dim has value n, then the i-th axis of top is equal to the n-th axis of bottom.
-  repeated int32 dim = 1;
-}
-
-message BatchNormParameter {
-  // If false, accumulate global mean/variance values via a moving average. If
-  // true, use those accumulated values instead of computing mean/variance
-  // across the batch.
-  optional bool use_global_stats = 1;
+message BatchNorm3dParameter {
   // How much does the moving average decay each iteration?
-  optional float moving_average_fraction = 2 [default = .999];
-  // Small value to add to the variance estimate so that we don't divide by
-  // zero.
-  optional float eps = 3 [default = 1e-5];
+  optional float moving_average_fraction = 3 [default = .1];
+  optional bool use_global_stats = 1 [default=false];
+  optional float eps = 2 [default=0.000001];
 }
 
-message GroupNormParameter {
-  //optional bool use_global_stats = 1;
-  //optional float moving_average_fraction = 2 [default = .999];
-  optional int32 group_num=1 [default = 32];
-  optional float eps = 2 [default = 1e-5];
-}
-
-message ROIAlignPoolingParameter {
+// Message that stores parameters used by PoolingLayer
+message Pooling3dParameter {
+  enum PoolMethod {
+    MAX = 0;
+    AVE = 1;
+  }
+  optional PoolMethod pool = 1 [default = MAX]; // The pooling method
   // Pad, kernel size, and stride are all given as a single value for equal
   // dimensions in height and width or as Y, X pairs.
-  optional uint32 pooled_h = 1 [default = 0]; // The pooled output height
-  optional uint32 pooled_w = 2 [default = 0]; // The pooled output width
-  // Multiplicative spatial scale factor to translate ROI coords from their
-  // input scale to the scale used when pooling
-  optional float spatial_scale = 3 [default = 1];
-  optional int32 sample_num = 4 [default = 1];
-}
+  optional uint32 pad = 4 [default = 0]; // The padding size (equal in Y, X)
+  optional uint32 pad_d = 11 [default = 0]; // The padding depth
+  optional uint32 pad_h = 9 [default = 0]; // The padding height
+  optional uint32 pad_w = 10 [default = 0]; // The padding width
+  optional uint32 kernel_size = 2; // The kernel size (square)
+  optional uint32 kernel_d = 14; // The kernel depth
+  optional uint32 kernel_h = 5; // The kernel height
+  optional uint32 kernel_w = 6; // The kernel width
+  optional uint32 stride = 3 [default = 1]; // The stride (equal in Y, X)
+  optional uint32 stride_d = 15; // The stride depth
+  optional uint32 stride_h = 7; // The stride height
+  optional uint32 stride_w = 8; // The stride width
 
-message PODROIAlignPoolingParameter {
-  // Pad, kernel size, and stride are all given as a single value for equal
-  // dimensions in height and width or as Y, X pairs.
-  optional uint32 pooled_h = 1 [default = 0]; // The pooled output height
-  optional uint32 pooled_w = 2 [default = 0]; // The pooled output width
-  // Multiplicative spatial scale factor to translate ROI coords from their
-  // input scale to the scale used when pooling
-  optional float spatial_scale = 3 [default = 1];
-  optional int32 sample_num = 4 [default = 1];
-}
-
-//wangchangbao add @2017/03/28
-message PSROIAlignPoolingParameter {
-  required float spatial_scale = 1;
-  required int32 output_dim = 2; // output channel number
-  required int32 group_size = 3; // equal to pooled_size
-  optional int32 sample_num = 4 [default = 1];
+  // If global_pooling then it will pool over the size of the bottom by doing
+  // kernel_h = bottom->height and kernel_w = bottom->width
+  optional bool global_pooling = 12 [default = false];
+  optional bool ceil_mode = 13 [default = true];
 }
 
 
-message NNUpsampleParameter {
-    optional uint32 resize = 1 [default = 2];
-}
+//use DropoutParameter
+//message Dropout3dParameter {
+//}
+//message DropoutParameter {
+//  optional float dropout_ratio = 1 [default = 0.5]; // dropout ratio
+//}
 
-message NNInterpParameter {
-  optional int32 height = 1 [default = 0];
-  optional int32 width = 2 [default = 0];
-  optional int32 zoom_factor = 3 [default = 1];
-  optional int32 shrink_factor = 4 [default = 1];
-  optional int32 pad_beg = 5 [default = 0];
-  optional int32 pad_end = 6 [default = 0];
-  optional float scale_factor = 7 [default = 1];
+// Message that stores parameters used by Interp3dLayer
+//message Interp3dParameter {
+//  optional int32 depth = 8 [default = 0]; // Depth of output
+//  optional int32 height = 1 [default = 0]; // Height of output
+//  optional int32 width = 2 [default = 0]; // Width of output
+//  optional int32 zoom_factor = 3 [default = 1]; // zoom factor
+//  optional int32 shrink_factor = 4 [default = 1]; // shrink factor
+//  optional int32 pad_beg = 5 [default = 0]; // padding at begin of input
+//  optional int32 pad_end = 6 [default = 0]; // padding at end of input
+//  optional bool  align_corners = 7 [default = true];
+//}
+
+
+message NormalizeParameter {
+    enum NormalizeMethod{
+        L1 = 1;
+        L2 = 2;
+        REDUCE_L2 = 3;
+    }
+    optional float coeff = 1 [default = 0];
+    optional NormalizeMethod mode = 2 [default = L2];
+    optional int32 axis = 3;
+    optional float eps = 4 [default = 1e-12];
 }
 
 message HeatMap2CoordParameter {
-  optional int32 coord_h = 1 [default = 0];
-  optional int32 coord_w = 2 [default = 0];
-  optional bool coord_reposition = 3 [default = false];
-}
-
-
-message PSROIPoolingParameter {
-  required float spatial_scale = 1;
-  required int32 output_dim = 2; // output channel number
-  required int32 group_size = 3; // equal to pooled_size
-
-}
-
-message PSROIMaskPoolingParameter {
-  optional float spatial_scale = 1;
-  optional int32 output_dim = 2; // output channel number
-  optional int32 group_size = 3; // equal to pooled_size
-  optional float roi_scale = 4 [default = 1.0];
-  optional float bin_scale = 5 [default = 1.0];
-}
-
-message PositionVoteParameter {
-  enum PoolMethod {
-    AVE = 0;
-    MAX = 1;
-  }
-  optional PoolMethod method = 1 [default = AVE];
-  optional uint32 pooled_h = 2 [default = 3]; // The pooled output height
-  optional uint32 pooled_w = 3 [default = 3]; // The pooled output width
-  optional float spatial_scale = 4 [default = 1];
+    optional int32 coord_h = 1 [default = 0];
+    optional int32 coord_w = 2 [default = 0];
+    optional bool coord_reposition = 3 [default = false];
 }
 
 message BiasParameter {
@@ -615,106 +925,262 @@ message BiasParameter {
   optional FillerParameter filler = 3;
 }
 
-message NormalizeParameter {
-    optional float coeff = 1 [default = 1.0];
+message AlignmentToROIParameter {
+    optional float mouth_scale = 1 [default = 1];
+    optional float eye_scale = 2 [default = 1];
+    optional int32 max_width = 3 [default = 256];
+    optional int32 max_height = 4 [default = 256];
+}
+
+message ROIAlignPoolingParameter {
+    // Pad, kernel size, and stride are all given as a single value for equal
+    // dimensions in height and width or as Y, X pairs.
+    optional uint32 pooled_h = 1 [default = 0]; // The pooled output height
+    optional uint32 pooled_w = 2 [default = 0]; // The pooled output width
+    // Multiplicative spatial scale factor to translate ROI coords from their
+    // input scale to the scale used when pooling
+    optional float spatial_scale = 3 [default = 1];
+    optional int32 sample_num = 4 [default = 1];
+}
+
+message ROIAlignPoolingPodParameter {
+    enum PoolMode {
+        AVE = 0;
+        MAX = 1;
+    }
+    // Pad, kernel size, and stride are all given as a single value for equal
+    // dimensions in height and width or as Y, X pairs.
+    optional uint32 pooled_h = 1 [default = 0]; // The pooled output height
+    optional uint32 pooled_w = 2 [default = 0]; // The pooled output width
+    // Multiplicative spatial scale factor to translate ROI coords from their
+    // input scale to the scale used when pooling
+    optional float spatial_scale = 3 [default = 1];
+    optional int32 sample_num = 4 [default = 1];
+    optional PoolMode pool_mode = 5 [default = AVE];
+    optional bool aligned = 6 [default = false];
+}
+
+message PSROIAlignPoolingParameter {
+    required float spatial_scale = 1;
+    required int32 output_dim = 2; // output channel number
+    required int32 group_size = 3; // equal to pooled_size
+    optional int32 sample_num = 4 [default = 1];
+}
+
+message UnpoolingParameter {
+    enum UnpoolMethod {
+        MAX = 0;
+        AVE = 1;
+        TILE= 2;
+    }
+    optional UnpoolMethod unpool = 1 [default = MAX]; // The pooling method
+    // Pad, kernel size, and stride are all given as a single value for equal
+    // dimensions in height and width or as Y, X pairs.
+    optional uint32 pad = 4 [default = 0]; // The padding size (equal in Y, X)
+    optional uint32 pad_h = 9 [default = 0]; // The padding height
+    optional uint32 pad_w = 10 [default = 0]; // The padding width
+    optional uint32 kernel_size = 2; // The kernel size (square)
+    optional uint32 kernel_h = 5; // The kernel height
+    optional uint32 kernel_w = 6; // The kernel width
+    optional uint32 stride = 3 [default = 1]; // The stride (equal in Y, X)
+    optional uint32 stride_h = 7; // The stride height
+    optional uint32 stride_w = 8; // The stride width
+    optional uint32 unpool_size = 12; // destined unpooled map size
+    optional uint32 unpool_h = 13; // destined unpooled map height
+    optional uint32 unpool_w = 14; // destined unpooled map width
+    enum Engine {
+        DEFAULT = 0;
+        CAFFE = 1;
+    }
+    optional Engine engine = 11 [default = DEFAULT];
+}
+
+message ReverseParameter {
+    optional int32 axis=1 [default=0];
+}
+
+message LSTMParameter {
+  // renew by liangjiexin, 2021.6.22
+  required int32 hidden_size = 1;
+  optional bool bidirectional = 2 [default = false];
+}
+
+message PriorVBoxParameter {
+    // Encode/decode type.
+    // Minimum box size (in pixels). Required!
+    repeated float height = 1;
+    optional float width = 2 [default =16];
+
+    // If true, will clip the prior so that it is within [0, 1]
+    optional bool clip = 5 [default = false];
+    // Variance for adjusting the prior bboxes.
+    repeated float variance = 6;
+    // By default, we calculate img_height, img_width, step_x, step_y based on
+    // bottom[0] (feat) and bottom[1] (img). Unless these values are explicitely
+    // provided.
+    // Explicitly provide the img_size.
+    optional uint32 img_size = 7;
+    // Either img_size or img_h/img_w should be specified; not both.
+    optional uint32 img_h = 8;
+    optional uint32 img_w = 9;
+
+    // Explicitly provide the step size.
+    optional float step = 10;
+    // Either step or step_h/step_w should be specified; not both.
+    optional float step_h = 11;
+    optional float step_w = 12;
+
+    // Offset to the top left corner of each cell.
+    optional float offset = 13 [default = 0.5];
+}
+
+
+message NNUpsampleParameter {
+    optional uint32 resize = 1 [default = 2];
+}
+
+message BTCostVolumeParameter {
+    optional int32 min_disparity = 1 [default = 0];
+    optional uint32 disparity_num = 2 [default = 64];  // NOTE: disparity_num must be divided by 4
+    optional bool   save_disparity = 3 [default = false];
+
+    optional uint32 step_w  = 4  [default = 1];
+    optional uint32 step_h  = 5  [default = 1];
+    optional uint32 step_mode  = 6  [default = 0];   // 0 mean only calculate once, non 0 mean accumulate sum
+    enum CostDomainType {
+        SOBEL_ONLY = 0;
+        IMAGE_ONLY = 1;
+        SOBEL_AND_IMAGE = 2;
+    }
+    optional CostDomainType cost_domain_type = 7 [default = SOBEL_AND_IMAGE]; // SOBEL_AND_IMAGE is default correlation
+
+    enum ImplementMode {
+        GPU_MODE = 0;
+        CPU_MODE = 1;
+    }
+    optional ImplementMode implement_mode = 8 [default = GPU_MODE];
+}
+
+// Message that stores parameters used by CorrelationLayer
+message CorrelationParameter {
+  optional uint32 pad = 2 [default = 0]; // The padding size (equal in Y, X)
+  optional uint32 kernel_size = 3; // The kernel size (square)
+  optional uint32 max_displacement = 4; // The maximum displacement (square)
+  optional uint32 stride_1 = 5 [default = 1]; // The stride in blob 1 (equal in Y, X)
+  optional uint32 stride_2 = 6 [default = 1]; // The stride in blob 2 (equal in Y, X)
+
+  // For Correlation1D:
+  optional int32 single_direction = 8 [default = 0]; // Correlate only to the left (-1) or right (1)
+
+  optional bool do_abs = 7 [default = false]; // Use absolute value of result
+  enum CorrelationType {
+    MULTIPLY = 0;
+    SUBTRACT = 1;
+  }
+  optional CorrelationType correlation_type = 15 [default = MULTIPLY]; // Multiplicative is normal correlation
+  optional int32 pad_shift = 16 [default = 0];
+  optional bool mvn = 9 [default = false];
+}
+
+// Message that stores parameters used by PSROIPoolingLayer
+message PSROIPoolingParameter {
+    required float spatial_scale = 1;
+    required int32 output_dim = 2; // output channel number
+    required int32 group_size = 3; // equal to pooled_size
+    optional float roi_scale = 4 [default = 1.0]; // scale for roi
 }
 
 message ScaleParameter {
-  // The first axis of bottom[0] (the first input Blob) along which to apply
-  // bottom[1] (the second input Blob).  May be negative to index from the end
-  // (e.g., -1 for the last axis).
-  //
-  // For example, if bottom[0] is 4D with shape 100x3x40x60, the output
-  // top[0] will have the same shape, and bottom[1] may have any of the
-  // following shapes (for the given value of axis):
-  //    (axis == 0 == -4) 100; 100x3; 100x3x40; 100x3x40x60
-  //    (axis == 1 == -3)          3;     3x40;     3x40x60
-  //    (axis == 2 == -2)                   40;       40x60
-  //    (axis == 3 == -1)                                60
-  // Furthermore, bottom[1] may have the empty shape (regardless of the value of
-  // "axis") -- a scalar multiplier.
-  optional int32 axis = 1 [default = 1];
-
-  // (num_axes is ignored unless just one bottom is given and the scale is
-  // a learned parameter of the layer.  Otherwise, num_axes is determined by the
-  // number of axes by the second bottom.)
-  // The number of axes of the input (bottom[0]) covered by the scale
-  // parameter, or -1 to cover all axes of bottom[0] starting from `axis`.
-  // Set num_axes := 0, to multiply with a zero-axis Blob: a scalar.
-  optional int32 num_axes = 2 [default = 1];
-
-  // (filler is ignored unless just one bottom is given and the scale is
-  // a learned parameter of the layer.)
-  // The initialization for the learned scale parameter.
-  // Default is the unit (1) initialization, resulting in the ScaleLayer
-  // initially performing the identity operation.
-  optional FillerParameter filler = 3;
-
-  // Whether to also learn a bias (equivalent to a ScaleLayer+BiasLayer, but
-  // may be more efficient).  Initialized with bias_filler (defaults to 0).
-  optional bool bias_term = 4 [default = false];
-  optional FillerParameter bias_filler = 5;
+    optional int32 axis = 1 [default = 1];
+    optional int32 num_axes = 2 [default = 1];
+    optional FillerParameter filler = 3;
+    optional bool bias_term = 4 [default = false];
+    optional FillerParameter bias_filler = 5;
+    
+    // add by jiangzishan 2021.04.14
+    // Specify the number of dimensions to be aligned between bottom[0] and scale.
+    optional int32 num_check_axes = 6 [default = -1];
 }
 
-message DeformableConvolutionParameter {
-   optional uint32 num_output = 1; // The number of outputs for the layer
-   optional bool bias_term = 2 [default = true]; // whether to have bias terms
+message ScalesParameter {
+    optional float alpha = 1 [default = 1];
+    optional float beta = 2 [default = 0];
+}
 
-   // Pad, kernel size, and stride are all given as a single value for equal
-   // dimensions in all spatial dimensions, or once per spatial dimension.
-   repeated uint32 pad = 3; // The padding size; defaults to 0
-   repeated uint32 kernel_size = 4; // The kernel size
-   repeated uint32 stride = 6; // The stride; defaults to 1
-   // Factor used to dilate the kernel, (implicitly) zero-filling the resulting
-   // holes. (Kernel dilation is sometimes referred to by its use in the
-   // algorithme à trous from Holschneider et al. 1987.)
-   repeated uint32 hole = 18; // The dilation; defaults to 1
+message ReluScalesParameter {
+    optional float alpha = 1 [default = 1];
+    optional float beta = 2 [default = 0];
+    optional float negative_slope = 3 [default = 0];
+}
 
-   // For 2D convolution only, the *_h and *_w versions may also be used to
-   // specify both spatial dimensions.
-   optional uint32 pad_h = 9 [default = 0]; // The padding height (2D only)
-   optional uint32 pad_w = 10 [default = 0]; // The padding width (2D only)
-   optional uint32 kernel_h = 11; // The kernel height (2D only)
-   optional uint32 kernel_w = 12; // The kernel width (2D only)
-   optional uint32 stride_h = 13; // The stride height (2D only)
-   optional uint32 stride_w = 14; // The stride width (2D only)
-   optional uint32 hole_h = 20 [default = 1];
-   optional uint32 hole_w = 21 [default = 1];
+message TransposeParameter {
+    repeated int32 dim = 1;
+}
 
-   optional uint32 group = 5 [default = 1]; // The group size for group conv
-   optional uint32 deformable_group = 19 [default = 4];
+message ROIAlignParameter {
+    // Pad, kernel size, and stride are all given as a single value for equal
+    // dimensions in height and width or as Y, X pairs.
+    optional uint32 pooled_h = 1 [default = 0]; // The pooled output height
+    optional uint32 pooled_w = 2 [default = 0]; // The pooled output width
+    // Multiplicative spatial scale factor to translate ROI coords from their
+    // input scale to the scale used when pooling
+    optional float spatial_scale = 3 [default = 1];
 
-   optional FillerParameter weight_filler = 7; // The filler for the weight
-   optional FillerParameter bias_filler = 8; // The filler for the bias
-   enum Engine {
-     DEFAULT = 0;
-     CAFFE = 1;
-     CUDNN = 2;
-   }
-   optional Engine engine = 15 [default = DEFAULT];
+    //! add by jiangzishan 2021.08.20
+    optional int32 sample_num = 4 [default = 1];
+}
 
-   // The axis to interpret as "channels" when performing convolution.
-   // Preceding dimensions are treated as independent inputs;
-   // succeeding dimensions are treated as "spatial".
-   // With (N, C, H, W) inputs, and axis == 1 (the default), we perform
-   // N independent 2D convolutions, sliding C-channel (or (C/g)-channels, for
-   // groups g>1) filters across the spatial axes (H, W) of the input.
-   // With (N, C, D, H, W) inputs, and axis == 1, we perform
-   // N independent 3D convolutions, sliding (C/g)-channels
-   // filters across the spatial axes (D, H, W) of the input.
-   optional int32 axis = 16 [default = 1];
+message RpnProposalLayerParameter {
+    optional int32 feat_stride = 1 [default = 16];
+    optional int32 allowed_border = 2 [default = 0];
+    optional TestDescParam test_desc_param = 3;
+    optional TrainDescParam train_desc_param = 4;
+    repeated int32 anchor_scales = 5;
+    repeated float anchor_ratios = 6;
+    message TestDescParam {
+        optional int32 rpn_pre_nms_top_n = 1 [default = 6000 ];
+        optional int32 rpn_post_nms_top_n = 2 [default = 300 ];
+        optional int32 rpn_min_size = 3 [default = 16 ];
+        optional float rpn_nms_thresh = 4 [default = 0.7 ];
+    }
+    message TrainDescParam {
+        optional int32 rpn_pre_nms_top_n = 1 [default = 12000 ];
+        optional int32 rpn_post_nms_top_n = 2 [default = 2000 ];
+        optional int32 rpn_min_size = 3 [default = 16 ];
+        optional float rpn_nms_thresh = 4 [default = 0.7 ];
+    }
+    optional float score = 7 [default = 0];
+    optional bool withOutSoftmax = 8 [default = false];
+    optional float bbox_reg_xy_limit = 9 [default = 5.0 ];
+    optional float bbox_reg_hw_temp = 10 [default = 1.0 ];
+    optional float bbox_reg_hw_ratio_thresh_hi = 11 [default = 5.0 ];
+    optional float bbox_reg_hw_ratio_thresh_lo = 12 [default = 0.2 ];
+}
 
-   // Whether to force use of the general ND convolution, even if a specific
-   // implementation for blobs of the appropriate number of spatial dimensions
-   // is available. (Currently, there is only a 2D-specific convolution
-   // implementation; for input blobs with num_axes != 2, this option is
-   // ignored and the ND implementation will be used.)
-   optional bool force_nd_im2col = 17 [default = false];
- }
+message ROIMaskPoolingParameter {
+    optional int32 pooled_h = 1 [default = 0];
+    optional int32 pooled_w = 2 [default = 0];
+    optional float spatial_scale = 3 [default = 1];
+    optional int32  half_part = 4 [default = 0];
+    optional float roi_scale = 5 [default = 1];
+    optional float mask_scale = 6 [default = 0];
+}
 
-
-
-
+message ZXYBNParameter {
+    //! PPL Will ignore FillerParameter
+    //! But caffe use Filler to init blobs_.
+    optional FillerParameter slope_filler = 1;
+    optional FillerParameter bias_filler = 2;
+    optional float momentum  = 3 [default = 0.9];
+    optional float eps = 4 [default = 1e-5];
+    optional bool frozen = 5 [default = false];
+    enum Engine {
+        DEFAULT = 0;
+        CAFFE = 1;
+        CUDNN = 2;
+    }
+    optional Engine engine = 6 [default = DEFAULT];
+}
 
 // Message that stores parameters used to apply transformation
 // to the data layer's data
@@ -757,9 +1223,15 @@ message ArgMaxParameter {
   // If true produce pairs (argmax, maxval)
   optional bool out_max_val = 1 [default = false];
   optional uint32 top_k = 2 [default = 1];
-  optional int32 axis = 3;
+  optional int32 axis=3;
 }
 
+message ArgMinParameter {
+  // If true produce pairs (argmin, maxval)
+  optional bool out_min_val = 1 [default = false];
+  optional uint32 top_k = 2 [default = 1];
+  optional int32 axis=3;
+}
 
 // Message that stores parameters used by ConcatLayer
 message ConcatParameter {
@@ -795,11 +1267,10 @@ message ConvolutionParameter {
   optional uint32 stride = 6 [default = 1]; // The stride (equal in Y, X)
   optional uint32 stride_h = 13; // The stride height
   optional uint32 stride_w = 14; // The stride width
-
   optional uint32 hole = 17 [default = 1];
   optional uint32 hole_h = 18 [default = 1];
   optional uint32 hole_w = 19 [default = 1];
-
+  optional uint32 dilation = 21 [default = 1];
   optional FillerParameter weight_filler = 7; // The filler for the weight
   optional FillerParameter bias_filler = 8; // The filler for the bias
   enum Engine {
@@ -808,6 +1279,33 @@ message ConvolutionParameter {
     CUDNN = 2;
   }
   optional Engine engine = 15 [default = DEFAULT];
+  enum PPLConvolutionForwardAlgo_t{
+      PPL_CONVOLUTION_FORWARD_ALGO_NONE                     = -1;
+      PPL_CONVOLUTION_FORWARD_ALGO_IMPLICIT_GEMM            = 0;
+      PPL_CONVOLUTION_FORWARD_ALGO_IMPLICIT_PRECOMP_GEMM    = 1;
+      PPL_CONVOLUTION_FORWARD_ALGO_GEMM                     = 2;
+      PPL_CONVOLUTION_FORWARD_ALGO_DIRECT                   = 3;
+      PPL_CONVOLUTION_FORWARD_ALGO_FFT                      = 4;
+      PPL_CONVOLUTION_FORWARD_ALGO_FFT_TILING               = 5;
+      PPL_CONVOLUTION_FORWARD_ALGO_WINOGRAD_BLK2X2          = 6;
+      PPL_CONVOLUTION_FORWARD_ALGO_WINOGRAD_BLK4X4          = 7;
+      PPL_CONVOLUTION_FORWARD_ALGO_WINOGRAD_BLK6X6          = 8;
+      PPL_CONVOLUTION_FORWARD_ALGO_WINOGRAD_BLK4x4_FLT3x3   = 9;
+      PPL_CONVOLUTION_FORWARD_ALGO_WINOGRAD_BLK4x4_FLT5X5   = 10;
+      PPL_CONVOLUTION_FORWARD_ALGO_INVGEMM                  = 11;
+  }
+  optional PPLConvolutionForwardAlgo_t ForwardAlgo = 20 [default = PPL_CONVOLUTION_FORWARD_ALGO_NONE];
+  optional int32 ntile_width = 72 [default = 1];
+  optional int32 ntile_height = 73 [default = 1];
+//  repeated QuantizeParameter quantize_param = 74;
+  optional QuantizeParameter quantize_param = 74;
+  //fusion relu for ReflectionPadConvolution [ocl]
+  optional bool is_relu = 77 [default = false];
+  repeated QuantizeParameter perchannel_quantize_param = 75;
+  // out pad for pytorch deconv add by jianfei 20200824
+  optional uint32 out_pad = 78 [default = 0]; // The out_padding size (equal in Y, X)
+  optional uint32 out_pad_h = 79 [default = 0]; // The out_padding height
+  optional uint32 out_pad_w = 80 [default = 0]; // The out_padding width
 }
 
 // Message that stores parameters used by DataLayer
@@ -839,6 +1337,78 @@ message DataParameter {
   optional bool mirror = 6 [default = false];
   // Force the encoded image to have 3 color channels
   optional bool force_encoded_color = 9 [default = false];
+}
+
+ message NonMaximumSuppressionParameter {
+  // Threshold to be used in nms.
+  optional float nms_threshold = 1 [default = 0.3];
+  // Maximum number of results to be kept.
+  optional int32 top_k = 2;
+  // add by jiangzishan 2021.04.21
+  // Parameter for adaptive nms.
+  optional float eta = 3 [default = 1.0];
+ }
+
+message SaveOutputParameter {
+  // Output directory. If not empty, we will save the results.
+  optional string output_directory = 1;
+  // Output name prefix.
+  optional string output_name_prefix = 2;
+  // Output format.
+  //    VOC - PASCAL VOC output format.
+  //    COCO - MS COCO output format.
+  optional string output_format = 3;
+  // If you want to output results, must also provide the following two files.
+  // Otherwise, we will ignore saving results.
+  // label map file.
+  optional string label_map_file = 4;
+  // A file which contains a list of names and sizes with same order
+  // of the input DB. The file is in the following format:
+  //    name height width
+  //    ...
+  optional string name_size_file = 5;
+  // Number of test images. It can be less than the lines specified in
+  // name_size_file. For example, when we only want to evaluate on part
+  // of the test images.
+  optional uint32 num_test_image = 6;
+}
+
+// Message that store parameters used by DetectionOutputLayer
+message DetectionOutputParameter {
+  // Number of classes to be predicted. Required!
+  optional uint32 num_classes = 1;
+  // If true, bounding box are shared among different classes.
+  optional bool share_location = 2 [default = true];
+  // Background label id. If there is no background class,
+  // set it as -1.
+  optional int32 background_label_id = 3 [default = 0];
+  // Parameters used for non maximum suppression.
+  optional NonMaximumSuppressionParameter nms_param = 4;
+  // Parameters used for saving detection results.
+  optional SaveOutputParameter save_output_param = 5;
+  // Type of coding method for bbox.
+  optional PriorBoxParameter.CodeType code_type = 6 [default = CORNER];
+  // If true, variance is encoded in target; otherwise we need to adjust the
+  // predicted offset accordingly.
+  optional bool variance_encoded_in_target = 8 [default = false];
+  // Number of total bboxes to be kept per image after nms step.
+  // -1 means keeping all bboxes after nms step.
+  optional int32 keep_top_k = 7 [default = -1];
+  // Only consider detections whose confidences are larger than a threshold.
+  // If not provided, consider all boxes.
+  optional float confidence_threshold = 9;
+  // If true, visualize the detection results.
+  optional bool visualize = 10 [default = false];
+  // The threshold used to visualize the detection results.
+  optional float visualize_threshold = 11;
+
+  // add by jiangzishan 2021.04.29
+  optional int32 max_batch_size = 13 [default = 1];
+  // If true, variance is encoded in prior tensors
+  optional bool variance_encoded_in_prior = 14 [default = true];
+  // variance1 and variance2 is only effective when variance_encoded_in_prior is false
+  optional float variance1 = 15 [default = 0.1];
+  optional float variance2 = 16 [default = 0.2];
 }
 
 // Message that stores parameters used by DropoutLayer
@@ -886,6 +1456,16 @@ message ExpParameter {
   // ExpLayer computes outputs y = base ^ (shift + scale * x), for base > 0.
   // Or if base is set to the default (-1), base is set to e,
   // so y = exp(shift + scale * x).
+  optional float base = 1 [default = -1.0];
+  optional float scale = 2 [default = 1.0];
+  optional float shift = 3 [default = 0.0];
+}
+
+// Message that stores parameters used by ExpLayer
+message LogParameter {
+  // LogLayer computes outputs y = log_base(shift + scale * x), for base > 0.
+  // Or if base is set to the default (-1), base is set to e,
+  // so y = ln(shift + scale * x) = log_e(shift + scale * x)
   optional float base = 1 [default = -1.0];
   optional float scale = 2 [default = 1.0];
   optional float shift = 3 [default = 0.0];
@@ -962,6 +1542,15 @@ message InnerProductParameter {
   // all preceding axes are retained in the output.
   // May be negative to index from the end (e.g., -1 for the last axis).
   optional int32 axis = 5 [default = 1];
+  optional QuantizeParameter quantize_param = 6;
+  repeated QuantizeParameter perchannel_quantize_param = 7;
+
+  // add by jiangzishan 2021.04.15
+  // Specify whether to transpose the weight matrix or not.
+  // If transpose == true, any operations will be performed on the transpose
+  // of the weight matrix. The weight matrix itself is not going to be transposed
+  // but rather the transfer flag of operations will be toggled accordingly.
+  optional bool transpose = 8 [default = false];
 }
 
 // Message that stores parameters used by LRNLayer
@@ -994,12 +1583,21 @@ message MVNParameter {
   optional bool across_channels = 2 [default = false];
 }
 
+message PermuteParameter {
+  // The new orders of the axes of data. Notice it should be with
+  // in the same range as the input data, and it starts from 0.
+  // Do not provide repeated order.
+  repeated uint32 order = 1;
+}
+
 // Message that stores parameters used by PoolingLayer
 message PoolingParameter {
   enum PoolMethod {
     MAX = 0;
     AVE = 1;
     STOCHASTIC = 2;
+    AVE_COUNT_INCLUDE_PADDING = 3;
+    AVE_COUNT_EXCLUDE_PADDING = 4;
   }
   optional PoolMethod pool = 1 [default = MAX]; // The pooling method
   // Pad, kernel size, and stride are all given as a single value for equal
@@ -1022,16 +1620,89 @@ message PoolingParameter {
   // If global_pooling then it will pool over the size of the bottom by doing
   // kernel_h = bottom->height and kernel_w = bottom->width
   optional bool global_pooling = 12 [default = false];
-  optional bool torch_padding = 13 [default = false];
-  optional bool ceil_mode = 14 [default = true];
+  optional bool ceil_mode = 13 [default = true];
 }
 
+message PoolingSpecificParameter{
+  enum PoolSpecificMethod {
+    MAX = 0;
+    AVE = 1;
+  }
+  required PoolSpecificMethod pool = 1;
+  required uint32 spe_w = 2;
+  required uint32 spe_h = 3;
+}
 // Message that stores parameters used by PowerLayer
 message PowerParameter {
   // PowerLayer computes outputs y = (shift + scale * x) ^ power.
   optional float power = 1 [default = 1.0];
   optional float scale = 2 [default = 1.0];
   optional float shift = 3 [default = 0.0];
+}
+
+// Message that stores parameters used by PowerLayer
+message SumShiftScalesSigmoidParameter {
+  // SumShiftScalesSigmoidLayer computes outputs y = sigmoid(alpha * (shift + x)).
+  optional float shift = 1 [default = 0.0];
+  optional float scales = 2 [default = 1.0];
+}
+
+message DrawHeatmapParameter {
+  optional uint32 roi_pool_h = 1 [default = 1];
+  optional uint32 roi_pool_w = 2 [default = 1];
+}
+
+// Message that store parameters used by PriorBoxLayer
+message PriorBoxParameter {
+  // Encode/decode type.
+  // modified by jiangzishan 2021.04.29: add CORNER_SIZE
+  // modified by jiangzishan 2021.08.30: add DeltaXYWHBBoxCoder
+  enum CodeType {
+    CORNER = 1;
+    CENTER_SIZE = 2;
+    CORNER_SIZE = 3;
+    DeltaXYWHBBoxCoder = 4;
+  }
+  // Minimum box size (in pixels). Required!
+  // modified by jiangzishan 2021.04.29: optional --> required
+  repeated float min_size = 1;
+  // Maximum box size (in pixels). Required!
+  // modified by jiangzishan 2021.04.29: optional --> required
+  repeated float max_size = 2;
+  // Various of aspect ratios. Duplicate ratios will be ignored.
+  // If none is provided, we use default ratio 1.
+  repeated float aspect_ratio = 3;
+  // If true, will flip each aspect ratio.
+  // For example, if there is aspect ratio "r",
+  // we will generate aspect ratio "1.0/r" as well.
+  optional bool flip = 4 [default = true];
+  // If true, will clip the prior so that it is within [0, 1]
+  // modified by jiangzishan 2021.04.29: true --> false
+  optional bool clip = 5 [default = false];
+  // Variance for adjusting the prior bboxes.
+  repeated float variance = 6;
+
+
+  // add by jiangzishan 2021.04.29  
+  // By default, we calculate img_height, img_width, step_x, step_y based on
+  // bottom[0] (feat) and bottom[1] (img). Unless these values are explicitely
+  // provided.
+  // Explicitly provide the img_size.
+  optional uint32 img_size = 7;
+  // Either img_size or img_h/img_w should be specified; not both.
+  optional uint32 img_h = 8;
+  optional uint32 img_w = 9;
+
+  // Explicitly provide the step size.
+  optional float step = 10;
+  // Either step or step_h/step_w should be specified; not both.
+  optional float step_h = 11;
+  optional float step_w = 12;
+
+  // Offset to the top left corner of each cell.
+  optional float offset = 13 [default = 0.5];
+
+  repeated float scales = 14;
 }
 
 // Message that stores parameters used by PythonLayer
@@ -1065,15 +1736,6 @@ message ROIPoolingParameter {
   // Multiplicative spatial scale factor to translate ROI coords from their
   // input scale to the scale used when pooling
   optional float spatial_scale = 3 [default = 1];
-}
-
-message ROIMaskPoolingParameter {
-  optional uint32 pooled_h = 1 [default = 0];
-  optional uint32 pooled_w = 2 [default = 0];
-  optional float spatial_scale = 3 [default = 1];
-  optional int32 half_part = 4 [default = 0];
-  optional float roi_scale = 5 [default = 1];
-  optional float mask_scale = 6 [default = 0];
 }
 
 message ReshapeParameter {
@@ -1162,62 +1824,6 @@ message SliceParameter {
   optional uint32 slice_dim = 1 [default = 1];
 }
 
-message MatmulParameter {
-  enum Engine {
-    DEFAULT = 0;
-    CAFFE = 1;
-  }
-  optional Engine engine = 1 [default = DEFAULT];
-  enum MatMulMode {
-      NN = 1;
-      NT = 2;
-      TN = 3;
-      TT = 4;
-  }
-  optional MatMulMode mode = 2 [default = NN]; // gemm mode
-}
-
-// Message that stores parameters used by ReductionLayer
-message ReductionParameter {
-  enum ReductionOp {
-    SUM = 1;
-    ASUM = 2;
-    SUMSQ = 3;
-    MEAN = 4;
-  }
-
-  optional ReductionOp operation = 1 [default = SUM]; // reduction operation
-
-  // The first axis to reduce to a scalar -- may be negative to index from the
-  // end (e.g., -1 for the last axis).
-  // (Currently, only reduction along ALL "tail" axes is supported; reduction
-  // of axis M through N, where N < num_axes - 1, is unsupported.)
-  // Suppose we have an n-axis bottom Blob with shape:
-  //     (d0, d1, d2, ..., d(m-1), dm, d(m+1), ..., d(n-1)).
-  // If axis == m, the output Blob will have shape
-  //     (d0, d1, d2, ..., d(m-1)),
-  // and the ReductionOp operation is performed (d0 * d1 * d2 * ... * d(m-1))
-  // times, each including (dm * d(m+1) * ... * d(n-1)) individual data.
-  // If axis == 0 (the default), the output Blob always has the empty shape
-  // (count 1), performing reduction across the entire input --
-  // often useful for creating new loss functions.
-  optional int32 axis = 2 [default = 0];
-
-  optional float coeff = 3 [default = 1.0]; // coefficient for output
-}
-
-// Message that stores parameters used by ReduceLayer
-message ReduceParameter {
-  enum ReduceOp {
-    SUM = 1;
-    MEAN = 2;
-  }
-
-  optional ReduceOp operation = 1 [default = SUM]; // reduce operation
-
-  optional int32 axis = 2 [default = 1];
-}
-
 // Message that stores parameters used by SoftmaxLayer, SoftmaxWithLossLayer
 message SoftmaxParameter {
   enum Engine {
@@ -1233,6 +1839,7 @@ message SoftmaxParameter {
   optional int32 axis = 2 [default = 1];
 }
 
+// Message that stores parameters used by TopkSoftmaxLayer,
 message TopkSoftmaxParameter {
   enum Engine {
     DEFAULT = 0;
@@ -1247,6 +1854,7 @@ message TopkSoftmaxParameter {
   optional int32 axis = 2 [default = 1];
   optional int32 topk = 3 [default = 10];
 }
+
 
 // Message that stores parameters used by TanHLayer
 message TanHParameter {
@@ -1325,6 +1933,7 @@ message PReLUParameter {
   optional FillerParameter filler = 1;
   // Whether or not slope paramters are shared across channels.
   optional bool channel_shared = 2 [default = false];
+  optional QuantizeParameter quantize_param = 3;
 }
 
 message CropParameter{
@@ -1335,25 +1944,25 @@ message CropParameter{
    optional Type type = 1 [default = CENTER];
    optional uint32 crop_w = 2 [default = 0];
    optional uint32 crop_h = 3 [default = 0];
-   optional int32 offset_w = 5 [default = 0];
-   optional int32 offset_h = 6 [default = 0];
    optional bool  print_info = 4 [default = false];
 }
 
 message AffineTransParameter {
-  optional float scale = 1 [default = 1.0];
-  optional float translate_x = 2 [default = 0.0];
-  optional float translate_y = 3 [default = 0.0];
-  optional uint32 output_h = 4 [default = 0];
-  optional uint32 output_w = 5 [default = 0];
-  optional float border_value = 6 [default = 0];
+  optional uint32 output_h = 1 [default = 0];
+  optional uint32 output_w = 2 [default = 0];
+  optional float border_value = 3 [default = 0];
+  repeated float affine_mat = 4;
+  optional float scale = 5 [default = 1.0];
+  optional float translate_x = 6 [default = 0.0];
+  optional float translate_y = 7 [default = 0.0];
 }
 
 message AffineTransPointParameter {
-  optional float scale = 1 [default = 1.0];
+  optional bool inverse = 1 [default = false];
   optional float translate_x = 2 [default = 0.0];
   optional float translate_y = 3 [default = 0.0];
-  optional bool inverse = 5 [default = false];
+  repeated float affine_mat = 4;
+  optional float scale = 5 [default = 1.0];
 }
 
 message CalcAffineMatParameter {
@@ -1372,7 +1981,7 @@ enum InterpType {
 // Input 1: Feature Map
 // Input 2: ROI center (required when center isn't given in parameter)
 //    This layer support multi-center, and the output channels will be orginazed by
-//    input channels first (channel1-center1, channel1-center2, ... , channel2-center1, channel2-center2, ...)
+//    input center first (channel1-center1, channel2-center1, ... , channel1-center2, channel2-center2, ...)
 //
 // Output 1: ROI Feature Map
 // Output 2: Actually used center subtract given center (available when type=NEAREST)
@@ -1398,28 +2007,38 @@ message ROIParameter {
 
 // Message that stores parameters used by InterpLayer
 message InterpParameter {
+  enum ModeType {
+    caffe = 0;
+    pytorch = 1;
+  }
+
   optional int32 height = 1 [default = 0]; // Height of output
   optional int32 width = 2 [default = 0]; // Width of output
   optional int32 zoom_factor = 3 [default = 1]; // zoom factor
   optional int32 shrink_factor = 4 [default = 1]; // shrink factor
   optional int32 pad_beg = 5 [default = 0]; // padding at begin of input
   optional int32 pad_end = 6 [default = 0]; // padding at end of input
-  optional float scale_factor = 7 [default = 1]; // scale factor
+  optional bool  align_corners = 7 [default = true];
+  optional ModeType backend = 10 [default = caffe];
 }
 
-//support 1 and 3 only.
-//enum interp_mode {
-//    LINEAR = 1;
-//    AREA = 2;
-//    NEAREST = 3;
-//    CUBIC = 4;
-//    LANCZOS4 = 5;
-//}
-// Message that stores parameters used by ResizeLayer
-message ResizeParameter {
+// Message that stores parameters used by InterpLayer
+message InterpScalesParameter {
+  enum ModeType {
+    caffe = 0;
+    pytorch = 1;
+  }
+
   optional int32 height = 1 [default = 0]; // Height of output
   optional int32 width = 2 [default = 0]; // Width of output
-  optional int32 interp_mode = 3 [default = 1]; // interp_mode of resize
+  optional int32 zoom_factor = 3 [default = 1]; // zoom factor
+  optional int32 shrink_factor = 4 [default = 1]; // shrink factor
+  optional int32 pad_beg = 5 [default = 0]; // padding at begin of input
+  optional int32 pad_end = 6 [default = 0]; // padding at end of input
+  optional bool  align_corners = 7 [default = true];
+  optional ModeType backend = 10 [default = caffe];
+  optional float alpha = 11 [default = 1];
+  optional float beta = 12 [default = 0];
 }
 
 // Message that stores parameters used by RecurrentLayer
@@ -1433,19 +2052,41 @@ message RecurrentParameter {
 
   // Whether to enable displaying debug_info in the unrolled recurrent net.
   optional bool debug_info = 4 [default = false];
-  optional bool hidden_bias = 5 [default = false];
+
+
+  // add by jiangzishan 2021.04.12 to sync with kestrel
+
+  // Whether to add as additional inputs (bottoms) the initial hidden state
+  // blobs, and add as additional outputs (tops) the final timestep hidden state
+  // blobs.  The number of additional bottom/top blobs required depends on the
+  // recurrent architecture -- e.g., 1 for RNNs, 2 for LSTMs.
+  optional bool expose_hidden = 5 [default = false];
+
+  optional bool image_batch = 6 [default = false];
 }
 
-message SubpixelDownParameter {
-  optional uint32 downsample = 1 [default=1];
+/// Message that stores parameters used by FlattenLayer
+message FlattenParameter {
+  // The first axis to flatten: all preceding axes are retained in the output.
+  // May be negative to index from the end (e.g., -1 for the last axis).
+  optional int32 axis = 1 [default = 1];
+
+  // The last axis to flatten: all following axes are retained in the output.
+  // May be negative to index from the end (e.g., the default -1 for the last
+  // axis).
+  optional int32 end_axis = 2 [default = -1];
 }
 
-message SubpixelUpParameter {
-  optional uint32 upsample = 1 [default=1];
-}
-
-message UpsampleParameter {
-  optional int32 scale = 1 [default=1];
+message BatchNormParameter {
+  // If false, accumulate global mean/variance values via a moving average. If
+  // true, use those accumulated values instead of computing mean/variance
+  // across the batch.
+  optional bool use_global_stats = 1;
+  // How much does the moving average decay each iteration?
+  optional float moving_average_fraction = 2 [default = .999];
+  // Small value to add to the variance estimate so that we don't divide by
+  // zero.
+  optional float eps = 3 [default = 1e-5];
 }
 
 // DEPRECATED: use LayerParameter.
@@ -1464,10 +2105,6 @@ message V1LayerParameter {
     CONCAT = 3;
     CONTRASTIVE_LOSS = 37;
     CONVOLUTION = 4;
-    DEFORMABLECONVOLUTION =99;
-    //from kunlin
-    HOLE_CONVOLUTION = 41;
-
     DATA = 5;
     DECONVOLUTION = 39;
     DROPOUT = 6;
@@ -1517,7 +2154,6 @@ message V1LayerParameter {
   optional ConcatParameter concat_param = 9;
   optional ContrastiveLossParameter contrastive_loss_param = 40;
   optional ConvolutionParameter convolution_param = 10;
-  optional DeformableConvolutionParameter deformable_convolution_param = 999;
   optional DataParameter data_param = 11;
   optional DropoutParameter dropout_param = 12;
   optional DummyDataParameter dummy_data_param = 26;
@@ -1642,7 +2278,139 @@ message V0LayerParameter {
   optional HDF5OutputParameter hdf5_output_param = 1001;
 }
 
-// add by yujinbiao 2022.01.05
+message ChannelShuffleParameter {
+    required uint32 group = 1 [default = 1];
+}
+
+message MovingAvgParameter {
+    required float decay = 1 [default = 0.0];
+}
+
+message SlicingParameter{
+  optional uint32 coefficient_len = 1 [default = 1];
+  optional int32 depth_d = 2 [default = -1];     // the grid depth to be considered.
+  optional float scale_x = 3 [default = -1.0];   // scale in range [0, 1] along width
+  optional float scale_y = 4 [default = -1.0];   // scale in range [0, 1] along height
+  optional int32 offset_x = 5 [default = 0];     // padding(or offset) along width
+  optional int32 offset_y = 6 [default = 0];     // padding(or offset) along height
+  optional int32 offset_z = 7 [default = 0];     // padding(or offset) along depth
+}
+
+message BilateralSlicingParameter
+{
+  required uint32 coefficient_len = 1 [default = 1];
+}
+
+message BilateralSliceApplyParameter
+{
+  required uint32 coefficient_len = 1 [default = 2];
+  optional bool has_offset = 2 [default = true];
+}
+
+message AdaptiveBilateralSliceApplyParameter
+{
+  optional uint32 coefficient_len = 1 [default = 2];
+  optional bool has_offset = 2 [default = true];
+  optional int32 depth_d = 3 [default = 1];
+}
+
+message PointsCurveParameter
+{
+  optional uint32 numpoints = 1 [default = 16];
+  optional FillerParameter slope_filler = 2; // The filler for the slope
+  optional FillerParameter bias_filler = 3; // The filler for the bias
+}
+
+message SubpixelDownParameter {
+  enum ModeType {
+    caffe = 0;
+    pytorch = 1;
+  }
+  optional uint32 downsample = 1 [default=1];
+  optional ModeType mode = 2 [default=caffe];
+}
+
+message SubpixelUpParameter {
+  enum DataType {
+      FLOAT32 = 0;
+      UINT8 = 1;
+  }
+  enum ModeType {
+    caffe = 0;
+    pytorch = 1;
+  }
+  optional uint32 upsample = 1 [default=1];
+  optional DataType output_datatype = 2 [default=FLOAT32];
+  optional ModeType mode = 3 [default=pytorch];
+}
+
+message ClipParameter {
+  optional float min = 1;
+  optional float max = 2;
+}
+
+message EltwiseAffineTransformParameter {
+}
+
+// Message that stores parameters used by TileLayer
+message TileParameter {
+  // The index of the axis to tile.
+  optional int32 axis = 1 [default = 1];
+
+  // The number of copies (tiles) of the blob to output.
+  required int32 tiles = 2 [default = 1];
+}
+
+message ReduceParameter {
+  enum ReduceOp {
+    SUM = 1;
+    ASUM = 2;
+    SUMSQ = 3;
+    MEAN = 4;
+    PROD = 5;
+    MAX = 6;
+    MIN = 7;
+  }
+
+  optional ReduceOp operation = 1 [default = SUM]; // reduce operation
+
+  // differ from "Reduction", "Reduce" only reduce along specific axis
+  optional int32 axis = 2 [default = 0];
+  optional bool keepdims = 3 [default = false];
+}
+
+message PadParameter {
+    optional int32 pad = 1 [default = 0];
+    enum PadMode {
+        REFLECTION = 1;
+    }
+    optional PadMode mode = 2 [default = REFLECTION];
+    optional int32 pad_w = 3 [default = 0];
+    optional int32 pad_h = 4 [default = 0];
+}
+message ReLU6Parameter {
+  // Allow non-zero slope for negative inputs to speed up optimization
+  // Described in:
+  // Maas, A. L., Hannun, A. Y., & Ng, A. Y. (2013). Rectifier nonlinearities
+  // improve neural network acoustic models. In ICML Workshop on Deep Learning
+  // for Audio, Speech, and Language Processing.
+  optional float negative_slope = 1 [default = 0];
+}
+
+message Correlation2DParameter {
+        optional uint32 groups = 1 [default = 1]; // groups size per batch
+}
+
+message MatMulParameter {
+    enum MatMulMode {
+        NN = 1;
+        NT = 2;
+        TN = 3;
+        TT = 4;
+    }
+    optional MatMulMode mode = 1 [default = NN]; // gemm mode
+}
+
 message ParameterParameter {
     optional int32 batch = 1 [default = 1];
     optional int32 m = 2 [default = -1];
@@ -1655,149 +2423,83 @@ message ParameterParameter {
     optional BlobShape shape = 7;
 }
 
-message Convolution3dParameter {
-  optional uint32 num_output = 1; // The number of outputs for the layer
-  optional bool bias_term = 2 [default = true]; // whether to have bias terms
-  // Pad, kernel size, and stride are all given as a single value for equal
-  // dimensions in height and width or as Y, X pairs.
-  optional uint32 pad = 3 [default = 0]; // The padding size (equal in Y, X)
-  optional uint32 pad_d = 23 [default = 0]; // The padding depth
-  optional uint32 pad_h = 9 [default = 0]; // The padding height
-  optional uint32 pad_w = 10 [default = 0]; // The padding width
-  optional uint32 kernel_size = 4; // The kernel size (square)
-  optional uint32 kernel_d = 22; // The kernel depth
-  optional uint32 kernel_h = 11; // The kernel height
-  optional uint32 kernel_w = 12; // The kernel width
-  optional uint32 group = 5 [default = 1]; // The group size for group conv
-  optional uint32 stride = 6 [default = 1]; // The stride (equal in Y, X)
-  optional uint32 stride_d = 21; // The stride depth
-  optional uint32 stride_h = 13; // The stride height
-  optional uint32 stride_w = 14; // The stride width
-  optional uint32 hole = 17 [default = 1];
-  optional uint32 hole_d = 19 [default = 1];
-  optional uint32 hole_h = 18 [default = 1];
-  optional uint32 hole_w = 20 [default = 1];
+message Parameter3dParameter {
+    optional int32 batch = 1 [default = 1];
+    optional int32 m = 2 [default = -1];
+    optional int32 n = 3 [default = -1];
+    optional int32 channel = 4 [default = -1];
+    optional int32 height = 5 [default = -1];
+    optional int32 width = 6 [default = -1];
+    optional int32 depth = 8 [default = -1];
+
+    // add by jiangzishan 2021.04.14
+    optional BlobShape shape = 7;
 }
 
-message DeformConv3dParameter {
-  optional uint32 num_output = 1; // The number of outputs for the layer
-  optional bool bias_term = 2 [default = true]; // whether to have bias terms
-  // Pad, kernel size, and stride are all given as a single value for equal
-  // dimensions in height and width or as Y, X pairs.
-  optional uint32 pad = 3 [default = 0]; // The padding size (equal in Y, X)
-  optional uint32 pad_d = 23 [default = 0]; // The padding depth
-  optional uint32 pad_h = 9 [default = 0]; // The padding height
-  optional uint32 pad_w = 10 [default = 0]; // The padding width
-  optional uint32 kernel_size = 4; // The kernel size (square)
-  optional uint32 kernel_d = 22; // The kernel depth
-  optional uint32 kernel_h = 11; // The kernel height
-  optional uint32 kernel_w = 12; // The kernel width
-  optional uint32 group = 5 [default = 1]; // The group size for group conv
-  optional uint32 stride = 6 [default = 1]; // The stride (equal in Y, X)
-  optional uint32 stride_d = 21; // The stride depth
-  optional uint32 stride_h = 13; // The stride height
-  optional uint32 stride_w = 14; // The stride width
-  optional uint32 hole = 17 [default = 1];
-  optional uint32 hole_d = 19 [default = 1];
-  optional uint32 hole_h = 18 [default = 1];
-  optional uint32 hole_w = 20 [default = 1];
-  optional uint32 deformable_group = 24 [default = 1];
-  optional uint32 im2col_step = 25 [default = 1];
+message PixelShuffleParameter {
+    required int32 upscale_factor = 1 [default = 1];
 }
 
-message ConvolutionTranspose3dParameter {
-  optional uint32 num_output = 1; // The number of outputs for the layer
-  optional bool bias_term = 2 [default = true]; // whether to have bias terms
-  // Pad, kernel size, and stride are all given as a single value for equal
-  // dimensions in height and width or as Y, X pairs.
-  optional uint32 pad = 3 [default = 0]; // The padding size (equal in Y, X)
-  optional uint32 pad_h = 9 [default = 0]; // The padding height
-  optional uint32 pad_w = 10 [default = 0]; // The padding width
-  optional uint32 kernel_size = 4; // The kernel size (square)
-  optional uint32 kernel_h = 11; // The kernel height
-  optional uint32 kernel_w = 12; // The kernel width
-  optional uint32 group = 5 [default = 1]; // The group size for group conv
-  optional uint32 stride = 6 [default = 1]; // The stride (equal in Y, X)
-  optional uint32 stride_h = 13; // The stride height
-  optional uint32 stride_w = 14; // The stride width
-  optional uint32 hole = 17 [default = 1];
-  optional uint32 hole_h = 18 [default = 1];
+message ROITransformParameter {
+    required int32 roi_pooled_h = 1;
+    required int32 roi_pooled_w = 2;
 }
 
-message Deconvolution3dParameter {
-  optional uint32 num_output = 1; // The number of outputs for the layer
-  optional bool bias_term = 2 [default = true]; // whether to have bias terms
-  // Pad, kernel size, and stride are all given as a single value for equal
-  // dimensions in height and width or as Y, X pairs.
-  optional uint32 pad = 3 [default = 0]; // The padding size (equal in Y, X)
-  optional uint32 pad_d = 23 [default = 0]; // The padding depth
-  optional uint32 pad_h = 9 [default = 0]; // The padding height
-  optional uint32 pad_w = 10 [default = 0]; // The padding width
-  optional uint32 kernel_size = 4; // The kernel size (square)
-  optional uint32 kernel_d = 22; // The kernel depth
-  optional uint32 kernel_h = 11; // The kernel height
-  optional uint32 kernel_w = 12; // The kernel width
-  optional uint32 group = 5 [default = 1]; // The group size for group conv
-  optional uint32 stride = 6 [default = 1]; // The stride (equal in Y, X)
-  optional uint32 stride_d = 21; // The stride depth
-  optional uint32 stride_h = 13; // The stride height
-  optional uint32 stride_w = 14; // The stride width
-  optional uint32 hole = 17 [default = 1];
-  optional uint32 hole_d = 19 [default = 1];
-  optional uint32 hole_h = 18 [default = 1];
-  optional uint32 hole_w = 20 [default = 1];
-
-  optional uint32 out_pad = 24 [default = 0]; // The padding size (equal in Y, X)
-  optional uint32 out_pad_d = 25 [default = 0]; // The padding depth
-  optional uint32 out_pad_h = 26 [default = 0]; // The padding height
-  optional uint32 out_pad_w = 27 [default = 0]; // The padding widt
+message MainTransformParameter {
+    required int32 roi_pooled_h = 1;
+    required int32 roi_pooled_w = 2;
 }
 
-message ReLU3dParameter {
-  optional float negative_slope = 1 [default=0.0];
-  optional bool channel_shared = 2 [default=false];
+message InstanceNormParameter {
+    optional int32 num_features = 1;
+    optional float eps = 2 [default = 1e-5];
+    optional bool affine = 3 [default = false];
+}
+message GridSampleParameter {
+    enum PaddingMode {
+        ZEROS = 0;
+        BORDER = 1;
+    }
+    optional PaddingMode padding_mode = 1 [default = ZEROS];
+    optional bool align_corners = 2 [default = false];
+}
+message BackwardWarpMigParameter {
+    enum PaddingMode {
+        ZEROS = 0;
+        BORDER = 1;
+        REFLECTION = 2;
+    }
+    enum Mode {
+        BILINEAR = 0;
+        NEAREST = 1;
+        CUBIC = 2;
+    }
+    optional PaddingMode padding_mode = 1 [default = ZEROS];
+    optional bool align_corners = 2 [default = false];
+    optional Mode mode = 3 [default = BILINEAR];
+}
+message GridSample3DParameter {
+    enum PaddingMode {
+        ZEROS = 0;
+        BORDER = 1;
+    }
+    optional PaddingMode padding_mode = 1 [default = ZEROS];
+    optional bool align_corners = 2 [default = false];
+    required int32 output_channel = 3;
 }
 
-message GroupNorm3dParameter {
-  optional uint32 group = 1 [default=1];
-  optional float moving_average_fraction = 4 [default = .1];
-  optional bool use_global_stats = 2 [default=false];
-  optional float eps = 3 [default=0.000001];
+message ReduceL2Parameter {
+    optional int32 axes = 1 [default = 4];
+    optional int32 keepdims = 2 [default = 1];
 }
 
-message BatchNorm3dParameter {
-  // How much does the moving average decay each iteration?
-  optional float moving_average_fraction = 3 [default = .1];
-  optional bool use_global_stats = 1 [default=false];
-  optional float eps = 2 [default=0.000001];
+message VarianceParameter {
+    repeated int32 dim = 1;
+    optional bool keepdim = 2 [default = true];
 }
-
-// Message that stores parameters used by PoolingLayer
-message Pooling3dParameter {
-  enum PoolMethod {
-    MAX = 0;
-    AVE = 1;
-  }
-  optional PoolMethod pool = 1 [default = MAX]; // The pooling method
-  // Pad, kernel size, and stride are all given as a single value for equal
-  // dimensions in height and width or as Y, X pairs.
-  optional uint32 pad = 4 [default = 0]; // The padding size (equal in Y, X)
-  optional uint32 pad_d = 11 [default = 0]; // The padding depth
-  optional uint32 pad_h = 9 [default = 0]; // The padding height
-  optional uint32 pad_w = 10 [default = 0]; // The padding width
-  optional uint32 kernel_size = 2; // The kernel size (square)
-  optional uint32 kernel_d = 14; // The kernel depth
-  optional uint32 kernel_h = 5; // The kernel height
-  optional uint32 kernel_w = 6; // The kernel width
-  optional uint32 stride = 3 [default = 1]; // The stride (equal in Y, X)
-  optional uint32 stride_d = 15; // The stride depth
-  optional uint32 stride_h = 7; // The stride height
-  optional uint32 stride_w = 8; // The stride width
-
-  // If global_pooling then it will pool over the size of the bottom by doing
-  // kernel_h = bottom->height and kernel_w = bottom->width
-  optional bool global_pooling = 12 [default = false];
-  optional bool ceil_mode = 13 [default = true];
+message MeanParameter {
+    repeated int32 dim = 1;
+    optional bool keepdim = 2 [default = true];
 }
 
 // Message that stores parameters used by Interp3dLayer
@@ -1815,24 +2517,319 @@ message Interp3dParameter {
   optional int32 pad_beg = 5 [default = 0]; // padding at begin of input
   optional int32 pad_end = 6 [default = 0]; // padding at end of input
   optional bool  align_corners = 7 [default = true];
-
+  
   optional ModeType backend = 10 [default=caffe];
 
 }
-
-// Message that stares parameters used by convexupsample
-message ConvexUpsampleParameter {
-  optional int32 scale = 1 [default = 4];
+message GRUParameter {
+  required int32 hidden_size = 1;
+  optional bool bidirectional = 2 [default = false];
 }
 
-// Message that stares parameters used by costvolume
+message LSTMCellParameter {
+  required int32 hidden_size = 1;
+  optional bool bias_term = 2 [default = true];
+}
+
+message ChainCRFParameter {
+  required int32 num_labels = 1;
+  optional bool bigram = 2 [default = true];
+}
+
+message CorrelationMigParameter {
+  optional int32 shift_step = 1 [default = 9];
+}
+
+// Message that stores parameters used by ArgSortLayer
+message ArgSortParameter {
+  optional bool descending = 1 [default = false];
+  optional int32 axis = 2;
+}
+
+// Message that stores parameters used by CumProdLayer
+message CumProdParameter {
+  optional int32 axis = 1;
+}
+
+message ProbNMSParameter {
+  optional int32 loop_time = 1 [default = 1];
+  optional int32 radius = 2 [default = 4];
+}
+
+message LayerNormParameter {
+  optional bool elementwise_affine = 1 [default = true];
+  // normalized dimentions are [axis, end]
+  optional int32 axis = 2 [default = 1];
+  optional float eps = 3 [default = 1e-5];
+}
+
+
+message DynamicReshapeParameter {
+  optional BlobShape shape = 1;
+  optional BlobShape ref_shape = 2;
+}
+
+message NNInterpParameter {
+  optional int32 height = 1 [default = 0];
+  optional int32 width = 2 [default = 0];
+  optional int32 zoom_factor = 3 [default = 1];
+  optional int32 shrink_factor = 4 [default = 1];
+  optional int32 pad_beg = 5 [default = 0];
+  optional int32 pad_end = 6 [default = 0];
+  optional float scale_factor = 7 [default = 1];
+}
+
+
+
+// add by jiangzishan
+// Ascend310 micro-benchmark op
+message AscendBenchmarkParameter {
+  enum Api {
+    DDR_2_L1 = 0;
+  }
+
+  message DataMoveParameter {
+    required int32 nburst = 1;
+    required int32 burst = 2;
+    required int32 src_stride = 3;
+    required int32 dst_stride = 4;
+  }
+
+  required Api api = 1;
+  optional DataMoveParameter data_move_param = 2;
+}
+
+
+// add by jiangzishan
+// Message that stores parameters used by EmbedLayer
+message EmbedParameter {
+  optional uint32 num_output = 1; // The number of outputs for the layer
+  // The input is given as integers to be interpreted as one-hot
+  // vector indices with dimension num_input.  Hence num_input should be
+  // 1 greater than the maximum possible input value.
+  optional uint32 input_dim = 2;
+
+  optional bool bias_term = 3 [default = true]; // Whether to use a bias term
+  optional FillerParameter weight_filler = 4; // The filler for the weight
+  optional FillerParameter bias_filler = 5; // The filler for the bias
+}
+
+// add by jiangzishan 2021.04.13
+message IndexSelectParameter {
+  optional int32 axis = 1 [default=1];
+}
+
+// add by jiangzishan 2021.04.15
+// Message that stores parameters used by ReductionLayer
+message ReductionParameter {
+  enum ReductionOp {
+    SUM = 1;
+    ASUM = 2;
+    SUMSQ = 3;
+    MEAN = 4;
+    PROD = 5;
+    MAX = 6;
+    MIN = 7;
+  }
+
+  optional ReductionOp operation = 1 [default = SUM]; // reduction operation
+
+  // The first axis to reduce to a scalar -- may be negative to index from the
+  // end (e.g., -1 for the last axis).
+  // (Currently, only reduction along ALL "tail" axes is supported; reduction
+  // of axis M through N, where N < num_axes - 1, is unsupported.)
+  // Suppose we have an n-axis bottom Blob with shape:
+  //     (d0, d1, d2, ..., d(m-1), dm, d(m+1), ..., d(n-1)).
+  // If axis == m, the output Blob will have shape
+  //     (d0, d1, d2, ..., d(m-1)),
+  // and the ReductionOp operation is performed (d0 * d1 * d2 * ... * d(m-1))
+  // times, each including (dm * d(m+1) * ... * d(n-1)) individual data.
+  // If axis == 0 (the default), the output Blob always has the empty shape
+  // (count 1), performing reduction across the entire input --
+  // often useful for creating new loss functions.
+  optional int32 axis = 2 [default = 0];
+
+  optional float coeff = 3 [default = 1.0]; // coefficient for output
+  optional bool keepdims = 4 [default = false]; 
+}
+
+
+
+// add by jiangzishan 2021.04.21
+message OneStageOutputParameter {
+  optional int32 num_classes = 1;
+  optional int32 background_label_id = 2 [default = 0];
+  optional int32 keep_top_k = 3 [default = -1];
+  optional float confidence_threshold = 4;
+  optional bool clip_bbox = 5;
+  optional NonMaximumSuppressionParameter nms_param = 6;
+  enum DetectModelType{
+    SSD = 0;
+    FSAF = 1;
+    FCOS = 2;
+    FSAF_MMDET = 3;
+    SSD_MMDET = 4;
+  }
+  optional DetectModelType model_type = 7;
+  optional float variance1 = 8 [default = 0.1];
+  optional float variance2 = 9 [default = 0.2];
+  optional int32 normalize_scale = 10 [default = 4];
+  optional int32 imgsize = 11 [default = 512];
+}
+
+// add by jiangzishan 2021.07.29
+// Message that stores parameters used by ProposalLayer
+message ProposalParameter {
+  optional uint32 feat_stride = 1 [default = 16];
+  optional uint32 base_size = 2 [default = 16];
+  optional uint32 min_size = 3 [default = 16];
+  repeated float ratio = 4;
+  repeated float scale = 5;
+  optional uint32 pre_nms_topn = 6 [default = 6000];
+  optional uint32 post_nms_topn = 7 [default = 300];
+  optional float nms_thresh = 8 [default = 0.7];
+}
+
+// add by jiangzishan 2021.08.02
+message CollectFpnProposalsParameter {
+  optional uint32 rpn_max_level = 1 [default = 7];
+  optional uint32 rpn_min_level = 2 [default = 4];
+  optional uint32 rpn_post_nms_topn = 3 [default = 1000];
+}
+
+// add by jiangzishan 2021.08.02
+message DistributeFpnProposalsParameter {
+  optional float roi_canonical_scale = 1 [default = 56];
+  optional uint32 roi_canonical_level = 2 [default = 0];
+  optional uint32 roi_max_level = 3 [default = 7];
+  optional uint32 roi_min_level = 4 [default = 4];
+  optional bool legacy_plus_one = 5 [default = true];
+}
+
+// add by wangjianfei 2021.7.7
+message ArangeParameter {
+    optional int32 start = 1 [default = 0];
+    optional int32 step = 2 [default = 1];
+    required int32 end_axis = 3;
+}
+
+// add by wangjianfei 2021.7.21
+message GetItemParameter {
+    repeated int32 axes = 1;
+    repeated int32 starts = 2;
+    repeated int32 steps = 3;
+    repeated int32 ends = 4;
+}
+
+// add by caokun 2021.07.27
+message WindowGatherParameter {
+  optional int32 window_size = 1 [default = 1];
+  optional int32 pad = 2 [default = 0];
+}
+
+// add by caokun 2021.08.04
+message WindowScatterParameter {
+  optional int32 window_size = 1 [default = 1];
+}
+
+message GatherParameter {
+  optional int32 axis = 1 [default = 0];
+  optional int32 data_rank = 2;
+  optional int32 indices_rank = 3;
+}
+
+// add by wangjianfei 2021.10.21
+message UpFirDn2DParameter {
+    optional int32 up_x = 1 [default = 1];
+    optional int32 up_y = 2 [default = 1];
+    optional int32 down_x = 3 [default = 1];
+    optional int32 down_y = 4 [default = 1];
+    optional int32 pad_x0 = 5 [default = 0];
+    optional int32 pad_x1 = 6 [default = 0];
+    optional int32 pad_y0 = 7 [default = 0];
+    optional int32 pad_y1 = 8 [default = 0];
+    optional int32 kernel_h = 9 [default = 4];  // kernel depends on pad_value
+    optional int32 kernel_w = 10 [default = 4];
+}
+
+// add by jiangzishan 2021.09.03
+message ROIExtractorParameter {
+  enum PoolMethod {
+    MAX = 0;
+    AVE = 1;
+  }
+  optional int32 finest_scale = 1 [default = 56];
+  optional float roi_scale_factor = 2 [default = 0];
+  repeated float spatial_scale = 3;
+  optional int32 pooled_height = 4 [default = 7];
+  optional int32 pooled_width = 5 [default = 7];
+  optional int32 sample_num = 6 [default = 0];
+  optional PoolMethod pool_mode = 7 [default = AVE];
+  optional bool aligned = 8 [default = true];
+}
+
+// add by yangyang 2022.1.24
+message LogicalJudgmentParameter{
+  optional float range_min = 1 [default = 0]; // the lower limit of logical judgment
+  optional float range_max = 2 [default = 1]; // the upper limit of logical judgment
+}
+
 message CostVolumeParameter {
   optional int32 max_disp = 1 [default = 4];
   optional int32 index_num = 2 [default = 53];
   optional bool bias_term = 3 [default = true];
 }
 
-message ClipParameter {
-  optional float min = 1;
-  optional float max = 2;
+message ConvexUpsampleParameter {
+  optional int32 scale = 1 [default = 4];
 }
+
+// add by wangjianfei 2022.8.2
+message FFTParameter {
+  enum NormType {
+    forward = 0;
+    backward = 1;
+    ortho = 2;
+  }
+
+  optional BlobShape signal_size = 1; // Signal size in the transformed dimensions
+  // specify from which dim to transform, Default: all dimensions, or the last len(s) dimensions if s is given.
+  optional int32 trans_dim = 2 [default = 0];
+  optional NormType norm_type = 3 [default=forward];
+}
+
+// quant parameters for ascend
+message QuantParameter {
+  optional bool with_offset = 1;
+  optional float scale = 2;
+  optional bytes offset = 3;
+
+  optional string object_layer = 4;
+}
+
+// dequant parameters for ascend
+message DeQuantParameter {
+  optional bool channel_wise = 1;
+
+  optional bool need_calibration = 10;
+  optional uint32 batch_num = 11;
+  optional string object_layer = 12;
+  optional string layer_type = 13;
+
+  repeated float deqscale = 20;
+  repeated float shift_bit = 21;
+  repeated float offset = 22;
+}
+
+message TorchSumParameter {
+    optional int32 dim = 1 [default = 4];
+    optional bool keepdim = 2 [default = true];
+}
+
+// add by xusiyu 2022.09.22
+message NonLocalMeanParameter{
+  optional int32 block_size = 1 [default = 7];
+  optional int32 search_window = 2 [default = 21];
+}
+
+
