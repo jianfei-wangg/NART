@@ -32,6 +32,25 @@ The below are versions supported by the model conversion module:
 Note: for Caffe target, some layers may be invalid for official Caffe,
 which will be fixed in later releases.
 
+## Build for model conversion, No need to Install!!!
+
+```sh
+# update git submodules
+git submodule update --init --recursive
+
+# install python requirements
+pip install -r python/requirements.txt
+
+# enable nart tools (e.g. promark)
+cmake -B build -DENABLE_NART_TOOLS=ON 
+
+cmake --build build -j16
+
+export PYTHONPATH=`pwd`/python:$PYTHONPATH
+# please use same verion python as build/python/_nart.cpython-xxm-x86_64-linux-gnu.so
+python3 /python/nart/onnx2caffe.py onnx.model
+```
+
 ## Build
 
 ```sh
