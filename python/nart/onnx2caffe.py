@@ -38,7 +38,7 @@ if __name__ == "__main__":
     graph = x.decode(onf)
 
     ConstantToInitializer().run(graph)
-    ExtractEltwise().run(graph)
+    # ExtractEltwise().run(graph)
     DeadCodeElimination().run(graph)
 
     alter = CaffeAlter(graph)
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     netdef = deepcopy(caffemodel)
     for layer in netdef.layer:
         del layer.blobs[:]
-    from .utils import write_netdef, write_model
+    from utils.utils import write_netdef, write_model
 
     write_netdef(netdef, f"{arg.output}.prototxt")
     # write_model(caffemodel, f"{arg.output}.caffemodel")

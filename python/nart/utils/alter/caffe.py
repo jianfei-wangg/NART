@@ -1631,8 +1631,13 @@ class Pow(Layer, is_register=True):
         layer.top[:] = self.node.output
         node = self.node
         param = layer.power_param
-        for attr in ["power", "scale", "shift"]:
-            setattr(param, attr, node.get_attribute_value(attr))
+        if len(node.input) == 2:
+            param.power = sum(self.node.owning_graph.get_const_tensor_as_array(self.node.input[1]))
+            param.scale = 1.0
+            param.shift = 0.0
+        else:
+            for attr in ["power", "scale", "shift"]:
+                setattr(param, attr, node.get_attribute_value(attr))
         return layer
 
 

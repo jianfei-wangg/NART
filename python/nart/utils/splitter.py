@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..core import Node
-from ..core import Graph
+from nart.core import Node
+from nart.core import Graph
 
 
 class _op_helper(object):
