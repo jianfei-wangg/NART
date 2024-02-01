@@ -1202,7 +1202,6 @@ class InnerproductLayer(CaffeLayer):
         self.layerParam = layerParameter.inner_product_param
 
     def infer(self, prev):
-
         # infer the output shape
         # self.topShape[0][:] = [bs, self.layerParam.num_output, 1, 1]
         # on = bs * ic * ih * iw
@@ -1277,8 +1276,8 @@ class InterpLayer(CaffeLayer):
             self.layerParam = layerParameter.interp_param
         elif layerParameter.HasField("nn_upsample_param"):
             self.layerParam = layerParameter.nn_upsample_param
-        elif layerParameter.HasField("resize_param"):
-            self.layerParam = layerParameter.resize_param
+        # elif layerParameter.HasField("resize_param"):
+        #     self.layerParam = layerParameter.resize_param
 
     def infer(self, prev):
         bs = prev[0][0]
@@ -1372,7 +1371,6 @@ class SliceLayer(CaffeLayer):
         self.layerParam = layerParameter.slice_param
 
     def infer(self, prev):
-
         self.topShape = np.zeros((len(self.topShape), len(prev[0])), np.int32)
         # infer the output shape
         axis = self.layerParam.axis

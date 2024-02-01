@@ -1159,17 +1159,33 @@ class _InterpCommon(BaseNode):
         self.weight = {}
 
     def trans(self):
+        from ...ops.op import Constant
+
         if len(self.layer.bottom) == 2:
             # dynamic upsample
+            input_shape = self.input_shape_dict[self.layer.bottom[0]]
             output_shape = self.input_shape_dict[self.layer.bottom[1]]
+            scales = np.ones((len(input_shape)), dtype=np.float32)
+            for i in range(len(input_shape)):
+                scales[i] = adjusted_scale(output_shape[i], input_shape[i])
+            scales[0]=1
+            scales[1]=1
+            constant_op = Constant.make_constant(
+                f"{self.layer.name}_scale_const", scales
+            )
+            roi=np.ones((1))
+            roi_op = Constant.make_constant(
+                f"{self.layer.name}_roi", roi
+            )
             dynupsample = Op.make_op(
-                "DynamicUpsample",
+                "Resize",
                 self.layer.name,
-                self.layer.bottom,
+                [self.layer.bottom[0],roi_op.output[0] ,constant_op.output[0]],
                 self.layer.top,
                 self.get_attr(),
+                version=11,
             )
-            return [dynupsample]
+            return [roi_op,constant_op, dynupsample]
         param = self.get_param()
         layer = self.layer
         # compute scale
@@ -1201,7 +1217,6 @@ class _InterpCommon(BaseNode):
         else:
             logger.fatal("Unsupported interpolate layer: {}")
         scales = np.array([1.0, 1.0, height_scale, width_scale], dtype=np.float32)
-        from ...ops.op import Constant
 
         constant_op = Constant.make_constant(f"{self.layer.name}_scale_const", scales)
         upsample_op = Op.make_op(
@@ -1232,6 +1247,7 @@ class Interp(_InterpCommon):
     def get_attr(self):
         settings = {}
         settings["mode"] = "linear"
+        settings["coordinate_transformation_mode"]="align_corners"
         return settings
 
 
@@ -1985,7 +2001,6 @@ class Convolution3d(BaseNode):
 
 
 class MatMul(BaseNode):
-
     # class MatMulMode(Enum):
     #     NN = 1
     #     NT = 2

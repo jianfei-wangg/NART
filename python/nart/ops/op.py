@@ -564,7 +564,6 @@ class BroadcastOp(Op, is_abstract=True):
 
 
 class Conv(Op):
-
     GROUP = GroupType.ONNX
 
     def infer_shape(self):
@@ -649,7 +648,6 @@ class Conv(Op):
 
 
 class ConvTranspose(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -683,7 +681,6 @@ class ConvTranspose(Op):
 
 
 class BatchNormalization(PassThroughOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -694,14 +691,12 @@ class BatchNormalization(PassThroughOp):
 
 
 class InstanceNormalization(PassThroughOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {"epsilon": (Op.FLOAT, 1e-5)}
 
 
 class MatMul(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -728,7 +723,6 @@ class MatMul(Op):
 
 
 class Max(BroadcastOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -737,7 +731,6 @@ class Max(BroadcastOp):
 
 
 class Min(BroadcastOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -746,7 +739,6 @@ class Min(BroadcastOp):
 
 
 class Mul(BroadcastOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -767,7 +759,6 @@ class Div(BroadcastOp):
 
 
 class Add(BroadcastOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -780,7 +771,6 @@ class Add(BroadcastOp):
 
 
 class Sub(BroadcastOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -789,7 +779,6 @@ class Sub(BroadcastOp):
 
 
 class Greater(BroadcastOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -798,7 +787,6 @@ class Greater(BroadcastOp):
 
 
 class ArgMax(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -958,7 +946,6 @@ class AveragePool_10(PoolBase, op_type="AveragePool", version=10):
 
 
 class QuantDequant(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -1022,7 +1009,6 @@ class MaxPool_10(PoolBase, op_type="MaxPool", version=10):
 
 
 class Relu(PassThroughOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -1031,14 +1017,12 @@ class Relu(PassThroughOp):
 
 
 class ReLU3d(PassThroughOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {"channel_shared": (Op.BOOL, False), "negative_slope": (Op.FLOAT, 0.0)}
 
 
 class PRelu(PassThroughOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -1047,7 +1031,6 @@ class PRelu(PassThroughOp):
 
 
 class Erf(PassThroughOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -1056,7 +1039,6 @@ class Erf(PassThroughOp):
 
 
 class Identity(PassThroughOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -1065,7 +1047,6 @@ class Identity(PassThroughOp):
 
 
 class Sqrt(BroadcastOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -1074,7 +1055,6 @@ class Sqrt(BroadcastOp):
 
 
 class Log(BroadcastOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -1083,7 +1063,6 @@ class Log(BroadcastOp):
 
 
 class Exp(BroadcastOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -1092,7 +1071,6 @@ class Exp(BroadcastOp):
 
 
 class Tanh(BroadcastOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -1101,7 +1079,6 @@ class Tanh(BroadcastOp):
 
 
 class Sigmoid(PassThroughOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -1110,7 +1087,6 @@ class Sigmoid(PassThroughOp):
 
 
 class Squeeze(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {"axes": (Op.LIST_OF_INTS,)}
@@ -1134,7 +1110,6 @@ class Squeeze(Op):
 
 
 class Concat(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {"axis": (Op.INT,)}
@@ -1183,7 +1158,6 @@ class Concat(Op):
 
 
 class Reshape(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -1238,7 +1212,6 @@ class Reshape(Op):
 
 
 class Softmax(PassThroughOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {"axis": (Op.INT, 1)}
@@ -1271,7 +1244,6 @@ class TopkSoftmax(PassThroughOp):
 
 
 class Transpose(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {"perm": (Op.LIST_OF_INTS,)}
@@ -1297,7 +1269,6 @@ class Transpose(Op):
 
 
 class Upsample(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -1330,7 +1301,6 @@ class Upsample(Op):
 
 
 class Constant(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {"value": (Op.TENSOR,)}
@@ -1389,7 +1359,6 @@ class Constant(Op):
 
 
 class Gemm(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -1461,7 +1430,6 @@ class Corr(Op):
 
 
 class Correlation1D(Op):
-
     GROUP = GroupType.TOOLS
 
     attr_dict = {
@@ -1487,7 +1455,6 @@ class Correlation1D(Op):
 
 
 class RoiPool(Op):
-
     Group = GroupType.TOOLS
 
     attr_dict = {
@@ -1556,7 +1523,6 @@ class RoiAlign(Op):
 
 
 class PODRoiAlign(Op):
-
     Group = GroupType.TOOLS
 
     attr_dict = {
@@ -1580,7 +1546,6 @@ class PODRoiAlign(Op):
 
 
 class PSRoiPool(Op):
-
     GROUP = GroupType.TOOLS
 
     attr_dict = {
@@ -1602,7 +1567,6 @@ class PSRoiPool(Op):
 
 
 class PSRoiMaskPool(Op):
-
     GROUP = GroupType.TOOLS
 
     attr_dict = {
@@ -1626,14 +1590,12 @@ class PSRoiMaskPool(Op):
 
 
 class ShuffleChannel(PassThroughOp):
-
     GROUP = GroupType.TOOLS
 
     attr_dict = {"group": (Op.INT, 1)}
 
 
 class HeatMap2Coord(Op):
-
     GROUP = GroupType.CASE
 
     attr_dict = {
@@ -1648,7 +1610,6 @@ class HeatMap2Coord(Op):
 
 
 class Clip(PassThroughOp):
-
     GROUP = GroupType.TOOLS
 
     attr_dict = {"max": (Op.FLOAT, 3.402823e38), "min": (Op.FLOAT, -3.402823e38)}
@@ -1973,7 +1934,6 @@ class Unsqueeze(Op):
 
 
 class Unfold(Op):
-
     GROUP = GroupType.CASE
 
     attr_dict = {
@@ -2137,7 +2097,6 @@ class LeakyRelu(PassThroughOp):
 
 
 class LpNormalization(PassThroughOp):
-
     GROUP = GroupType.TOOLS
 
     attr_dict = {"p": (Op.INT, 2), "axis": (Op.INT, -1)}
@@ -2634,14 +2593,12 @@ class LSTM(Op):
 
 
 class QuantizeLinear(PassThroughOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {}
 
 
 class DequantizeLinear(PassThroughOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {}
@@ -2662,7 +2619,6 @@ class CaffeExp(PassThroughOp):
 
 
 class ConstantOfShape(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {"value": (Op.TENSOR,)}
@@ -2743,7 +2699,6 @@ class Shape(Op):
 
 
 class Less(BroadcastOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -2768,7 +2723,6 @@ class Reciprocal(BroadcastOp):
 
 
 class Not(BroadcastOp):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -2776,8 +2730,26 @@ class Not(BroadcastOp):
     }
 
 
-class Resize_11(Op, op_type="Resize", version=11):
+class Resize_10(Op, op_type="Resize", version=10):
+    GROUP = GroupType.ONNX
 
+    attr_dict = {
+        "mode": (Op.STRING, "nearest"),
+    }
+
+    def infer_shape(self):
+        input_size = self.owning_graph.get_tensor_shape(self.input[0])
+        if self.input[1] in self.owning_graph.initializer:
+            scale = numpy_helper.to_array(self.owning_graph.initializer[self.input[1]])
+        else:
+            constant_node = self.owning_graph.get_tensor_producer(self.input[1])[-1]
+            scale = constant_node.to_ndarray()
+        for i in range(len(input_size)):
+            input_size[i] = math.floor(np.float32(input_size[i] * scale[i]))
+        self.owning_graph.set_tensor_shape(self.output[0], input_size)
+
+
+class Resize_11(Op, op_type="Resize", version=11):
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -2811,7 +2783,6 @@ class Resize_11(Op, op_type="Resize", version=11):
 
 
 class Tile(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {}
@@ -2836,7 +2807,6 @@ class Tile(Op):
 
 
 class Expand(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {}
@@ -2861,7 +2831,6 @@ class Expand(Op):
 
 
 class DepthToSpace(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {"blocksize": (Op.INT,), "mode": (Op.STRING, "DCR")}
@@ -2886,7 +2855,6 @@ class DepthToSpace(Op):
 
 
 class SpaceToDepth(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {"blocksize": (Op.INT,)}
@@ -2909,7 +2877,6 @@ class SpaceToDepth(Op):
 
 
 class ScatterND(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {"reduction": (Op.STRING, "")}
@@ -2920,7 +2887,6 @@ class ScatterND(Op):
 
 
 class Parameter(Op):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
@@ -2948,7 +2914,6 @@ class Parameter(Op):
 
 
 class ConvexUpsample(Op):
-
     GROUP = GroupType.CASE
 
     attr_dict = {
@@ -2965,7 +2930,6 @@ class ConvexUpsample(Op):
 
 
 class CostVolume(Op):
-
     GROUP = GroupType.CASE
 
     attr_dict = {
@@ -2987,7 +2951,6 @@ class CostVolume(Op):
 
 
 class Warp(Op):
-
     GROUP = GroupType.CASE
 
     attr_dict = {}
@@ -3026,14 +2989,12 @@ class Elu(PassThroughOp):
 
 
 class ClipCast(PassThroughOp):
-
     GROUP = GroupType.CASE
 
     attr_dict = {"to": (Op.INT,)}
 
 
 class AddDivClipCast(Op):
-
     GROUP = GroupType.CASE
 
     attr_dict = {"to": (Op.INT,)}
@@ -3059,7 +3020,6 @@ class AddDivClipCast(Op):
 
 
 class ArgMax(Op, version=11):
-
     GROUP = GroupType.ONNX
 
     attr_dict = {
